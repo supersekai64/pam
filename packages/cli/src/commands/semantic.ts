@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { SemanticIndex, readMemory, getGlobalMemoryPath, getProjectMemoryPath } from '@pamh/core'
+import { SemanticIndex, readMemory, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
 
 export function registerSemanticCommand(program: Command) {
   program

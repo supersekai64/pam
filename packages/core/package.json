@@ -1,8 +1,25 @@
 {
-  "name": "@pamh/core",
+  "name": "pamh-core",
   "version": "0.1.0",
   "description": "PAMH Core - Memory storage, indexing and search",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/supersekai64/pamh.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/supersekai64/pamh#readme",
+  "bugs": {
+    "url": "https://github.com/supersekai64/pamh/issues"
+  },
+  "keywords": [
+    "ai",
+    "memory",
+    "llm",
+    "mcp",
+    "sqlite"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -12,13 +29,19 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "pnpm run clean && tsc",
     "dev": "tsc --watch"
   },
   "files": [
     "dist"
   ],
-  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
     "@xenova/transformers": "^2.17.2",
     "adm-zip": "^0.5.16",

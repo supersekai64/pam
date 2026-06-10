@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { rejectMemory, getGlobalMemoryPath, getProjectMemoryPath } from '@pamh/core'
+import { rejectMemory, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
 
 export function registerRejectCommand(program: Command) {
   program

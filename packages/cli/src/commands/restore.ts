@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { restoreMemory, getGlobalMemoryPath, getProjectMemoryPath } from '@pamh/core'
+import { restoreMemory, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
 
 export function registerRestoreCommand(program: Command) {
   program

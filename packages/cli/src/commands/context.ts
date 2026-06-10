@@ -4,7 +4,7 @@ import {
   getProjectMemoryPath,
   compileContext,
   writeCompiledContext,
-} from '@pamh/core'
+} from 'pamh-core'
 
 export function registerContextCommand(program: Command) {
   program

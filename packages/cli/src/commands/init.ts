@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { configureProjectIntegrations, initGlobalMemory, initProjectMemory } from '@pamh/core'
+import { configureProjectIntegrations, initGlobalMemory, initProjectMemory } from 'pamh-core'
 
 interface InitProjectOptions {
   integrations?: boolean

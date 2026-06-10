@@ -6,7 +6,7 @@ import {
   listHandoffs,
   getGlobalMemoryPath,
   getProjectMemoryPath,
-} from '@pamh/core'
+} from 'pamh-core'
 
 export function registerHandoffCommand(program: Command) {
   const handoff = program.command('handoff').description('Cross-agent context transfer')

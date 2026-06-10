@@ -6,7 +6,7 @@ import {
   getProjectMemoryPath,
   listMemories,
   readMemory,
-} from '@pamh/core'
+} from 'pamh-core'
 
 export function registerSearchCommand(program: Command) {
   program

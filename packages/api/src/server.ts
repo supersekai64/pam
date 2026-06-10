@@ -17,8 +17,8 @@ import {
   updateMemory,
   type CreateMemoryInput,
   type UpdateMemoryInput,
-} from '@pamh/core'
-import { getUiDistPath } from '@pamh/ui'
+} from 'pamh-core'
+import { getUiDistPath } from 'pamh-ui'
 
 export interface LocalApiServerOptions {
   cwd?: string

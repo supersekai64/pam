@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { initProjectMemory } from '@pamh/core'
+import { initProjectMemory } from 'pamh-core'
 import {
   addMemory,
   compileMemoryContext,

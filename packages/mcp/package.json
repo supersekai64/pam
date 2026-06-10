@@ -1,21 +1,49 @@
 {
-  "name": "@pamh/mcp",
+  "name": "pamh-mcp",
   "version": "0.1.0",
   "description": "PAMH MCP - Model Context Protocol server for PAMH",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/supersekai64/pamh.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://github.com/supersekai64/pamh#readme",
+  "bugs": {
+    "url": "https://github.com/supersekai64/pamh/issues"
+  },
+  "keywords": [
+    "ai",
+    "memory",
+    "llm",
+    "mcp"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "scripts": {
-    "build": "tsc",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "pnpm run clean && tsc",
     "dev": "tsc --watch"
   },
   "files": [
     "dist"
   ],
-  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@pamh/core": "workspace:*",
+    "pamh-core": "workspace:*",
     "zod": "^4.4.3"
   }
 }

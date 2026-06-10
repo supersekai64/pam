@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { findMemoryBase, getGlobalMemoryPath, listMemories } from '@pamh/core'
+import { findMemoryBase, getGlobalMemoryPath, listMemories } from 'pamh-core'
 import { existsSync } from 'node:fs'
 
 export function registerStatusCommand(program: Command) {

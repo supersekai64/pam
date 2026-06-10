@@ -5,7 +5,7 @@ import {
   getGlobalMemoryPath,
   getProjectMemoryPath,
   type AutoCaptureMode,
-} from '@pamh/core'
+} from 'pamh-core'
 
 export function registerCaptureCommand(program: Command) {
   const capture = program.command('capture').description('Auto-capture configuration')

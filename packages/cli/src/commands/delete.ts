@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { deleteMemory, getGlobalMemoryPath, getProjectMemoryPath } from '@pamh/core'
+import { deleteMemory, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
 
 export function registerDeleteCommand(program: Command) {
   program

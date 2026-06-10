@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { indexAllMemories, getGlobalMemoryPath, getProjectMemoryPath } from '@pamh/core'
+import { indexAllMemories, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
 
 export function registerIndexCommand(program: Command) {
   const index = program.command('index').description('Index management commands')

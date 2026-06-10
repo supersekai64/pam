@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { listMemories, getGlobalMemoryPath, getProjectMemoryPath } from '@pamh/core'
+import { listMemories, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
 
 export function registerListCommand(program: Command) {
   program

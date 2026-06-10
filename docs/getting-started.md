@@ -7,7 +7,15 @@
 
 ## Installation
 
-**One-command setup** (recommended):
+**From npm** (recommended for users):
+
+```bash
+npm install -g pamh
+```
+
+This installs the `memory` command globally.
+
+**From source** (for development):
 
 ```bash
 pnpm setup
@@ -33,7 +41,7 @@ pnpm build
 pnpm link:cli
 ```
 
-This links the `memory` command globally from `packages/cli`. Use this root script instead of `pnpm --filter @pamh/cli link --global`, because `pnpm link` does not support filtered workspace execution consistently across PNPM versions and also requires a configured PNPM global bin directory.
+This links the `memory` command globally from `packages/cli`. Use this root script instead of `pnpm --filter pamh link --global`, because `pnpm link` does not support filtered workspace execution consistently across PNPM versions and also requires a configured PNPM global bin directory.
 
 ## Initialize Memory
 

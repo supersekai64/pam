@@ -8,7 +8,7 @@ import {
   assertMemoryType,
   assertMemoryScope,
   assertSalience,
-} from '@pamh/core'
+} from 'pamh-core'
 
 export function registerSupersedeCommand(program: Command) {
   const supersede = program.command('supersede').description('Memory supersession management')

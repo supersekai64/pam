@@ -5,7 +5,7 @@ import {
   redactContent,
   getGlobalMemoryPath,
   getProjectMemoryPath,
-} from '@pamh/core'
+} from 'pamh-core'
 
 export function registerRedactCommand(program: Command) {
   program

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { Command } from 'commander'
-import { startLocalApiServer } from '@pamh/api'
+import { startLocalApiServer } from 'pamh-api'
 
 interface UiCommandOptions {
   host?: string

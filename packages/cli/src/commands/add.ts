@@ -6,7 +6,7 @@ import {
   MEMORY_SCOPES,
   MEMORY_TYPES,
   assertSalience,
-} from '@pamh/core'
+} from 'pamh-core'
 
 export function registerAddCommand(program: Command) {
   program

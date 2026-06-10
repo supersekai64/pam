@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { approveMemory, getGlobalMemoryPath, getProjectMemoryPath } from '@pamh/core'
+import { approveMemory, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
 
 export function registerApproveCommand(program: Command) {
   program

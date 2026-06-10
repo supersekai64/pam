@@ -4,7 +4,7 @@ import {
   MemoryIndex,
   getGlobalMemoryPath,
   getProjectMemoryPath,
-} from '@pamh/core'
+} from 'pamh-core'
 
 export function registerDoctorCommand(program: Command) {
   const doctor = program.command('doctor').description('Diagnose memory system health')

@@ -1,10 +1,5 @@
 import { Command } from 'commander'
-import {
-  forgetSweep,
-  getGlobalMemoryPath,
-  getProjectMemoryPath,
-  type DecayConfig,
-} from '@pamh/core'
+import { forgetSweep, getGlobalMemoryPath, getProjectMemoryPath, type DecayConfig } from 'pamh-core'
 
 export function registerDecayCommand(program: Command) {
   const decay = program.command('decay').description('Memory decay management')

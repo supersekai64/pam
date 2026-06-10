@@ -5,7 +5,7 @@ import {
   getProjectMemoryPath,
   MEMORY_SCOPES,
   MEMORY_TYPES,
-} from '@pamh/core'
+} from 'pamh-core'
 
 export function registerEditCommand(program: Command) {
   program

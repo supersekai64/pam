@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { readMemory, getGlobalMemoryPath, getProjectMemoryPath } from '@pamh/core'
+import { readMemory, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
 
 export function registerShowCommand(program: Command) {
   program

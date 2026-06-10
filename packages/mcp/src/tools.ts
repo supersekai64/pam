@@ -22,7 +22,7 @@ import {
   type MemoryStatus,
   type DecayConfig,
   type HookEventType,
-} from '@pamh/core'
+} from 'pamh-core'
 
 export interface McpToolContext {
   cwd: string

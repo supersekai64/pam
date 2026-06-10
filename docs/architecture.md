@@ -40,23 +40,23 @@ See [docs/concepts.md](concepts.md#memory-discovery) for details.
 
 ## Packages
 
-### @pamh/core
+### pamh-core
 
 Responsible for storage, indexing, search, import, export, context compilation, and semantic search. It has no CLI or MCP dependency.
 
-### @pamh/cli
+### pamh
 
 Command-line interface. Depends on core.
 
-### @pamh/api
+### pamh-api
 
 Local HTTP API for human-facing clients. It binds to `127.0.0.1` by default and delegates all persistence to core. Future desktop apps and IDE extensions can use this API boundary from separate repositories.
 
-### @pamh/mcp
+### pamh-mcp
 
 MCP server for integration with IDEs and AI agents. Depends on core.
 
-### @pamh/ui
+### pamh-ui
 
 Static local web UI served by the local API server. It does not own data or contain persistence logic.
 

@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { archiveMemory, getGlobalMemoryPath, getProjectMemoryPath } from '@pamh/core'
+import { archiveMemory, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
 
 export function registerArchiveCommand(program: Command) {
   program

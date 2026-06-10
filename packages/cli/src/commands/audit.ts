@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { listMemories, MemoryIndex, getGlobalMemoryPath, getProjectMemoryPath } from '@pamh/core'
+import { listMemories, MemoryIndex, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
 
 export function registerAuditCommand(program: Command) {
   program

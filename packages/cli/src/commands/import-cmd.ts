@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { importMemories, getGlobalMemoryPath, getProjectMemoryPath } from '@pamh/core'
+import { importMemories, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
 import { resolve } from 'node:path'
 
 export function registerImportCommand(program: Command) {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander'
-import { VERSION } from '@pamh/core'
+import { VERSION } from 'pamh-core'
 import { registerInitCommand } from './commands/init.js'
 import { registerAddCommand } from './commands/add.js'
 import { registerListCommand } from './commands/list.js'
