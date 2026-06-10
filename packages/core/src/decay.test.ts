@@ -7,6 +7,8 @@ import {
   recordAccess,
   forgetSweep,
   createMemory,
+  readMemory,
+  archiveMemory,
   initProjectMemory,
   type Memory,
 } from './index.js'
@@ -62,6 +64,22 @@ describe('decay', () => {
     expect(updated!.metadata.last_accessed_at).toBeDefined()
   })
 
+  it('should not record access on archived memories', async () => {
+    const memory = await createMemory(basePath, {
+      type: 'knowledge',
+      scope: 'project',
+      content: 'Archived',
+    })
+    await archiveMemory(basePath, memory.metadata.id)
+    const archived = await readMemory(basePath, memory.metadata.id)
+
+    const accessed = await recordAccess(basePath, memory.metadata.id)
+
+    expect(accessed?.metadata.status).toBe('archived')
+    expect(accessed?.metadata.access_count).toBe(0)
+    expect(accessed?.metadata.updated_at).toBe(archived?.metadata.updated_at)
+  })
+
   it('should run forget sweep', async () => {
     // Create a memory with low salience
     await createMemory(basePath, {
@@ -94,7 +112,7 @@ describe('decay', () => {
   })
 
   it('should support dry run', async () => {
-    await createMemory(basePath, {
+    const memory = await createMemory(basePath, {
       type: 'knowledge',
       scope: 'project',
       content: 'Test',
@@ -114,6 +132,34 @@ describe('decay', () => {
     )
 
     // Should report what would be deleted without actually deleting
-    expect(result.softDeleted.length).toBeGreaterThanOrEqual(0)
+    expect(result.softDeleted.length).toBeGreaterThanOrEqual(1)
+    const loaded = await readMemory(basePath, memory.metadata.id)
+    expect(loaded?.metadata.status).toBe('active')
+  })
+
+  it('should reject invalid decay config', () => {
+    const memory: Memory = {
+      metadata: {
+        id: 'test',
+        type: 'knowledge',
+        scope: 'project',
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        tags: [],
+        source: 'manual',
+      },
+      content: 'Test content',
+    }
+
+    expect(() =>
+      calculateDecayScore(memory, {
+        lambda: -1,
+        sigma: 0.6,
+        mu: 0.04,
+        coldThreshold: 0.5,
+        hardDeleteAfterDays: 180,
+      })
+    ).toThrow('Invalid lambda')
   })
 })

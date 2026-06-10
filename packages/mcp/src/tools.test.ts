@@ -46,6 +46,7 @@ describe('MCP tools', () => {
 
     const loaded = await getMemory({ id: created.metadata.id, scope: 'project' }, context)
     expect(loaded?.content).toBe('Use PostgreSQL for relational data')
+    expect(loaded?.metadata.access_count).toBe(1)
 
     const edited = await editMemory(
       {

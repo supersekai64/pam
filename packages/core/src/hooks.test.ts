@@ -1,13 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import {
-  recordHookEvent,
-  getSessionEvents,
-  getRecentEvents,
-  initProjectMemory,
-} from './index.js'
+import { recordHookEvent, getSessionEvents, getRecentEvents, initProjectMemory } from './index.js'
 
 describe('hooks', () => {
   let tempDir: string
@@ -65,6 +60,22 @@ describe('hooks', () => {
     expect(events[0].type).toBe('session-start')
     expect(events[1].type).toBe('user-prompt')
     expect(events[2].type).toBe('session-end')
+
+    const summaryRaw = await readFile(join(basePath, 'sessions', 'session-123.json'), 'utf-8')
+    const summary = JSON.parse(summaryRaw)
+    expect(summary.session_id).toBe('session-123')
+    expect(summary.event_count).toBe(3)
+  })
+
+  it('should reject unsafe session ids when writing summaries', async () => {
+    await expect(
+      recordHookEvent(basePath, {
+        type: 'session-end',
+        session_id: '../outside',
+        project_path: tempDir,
+        data: {},
+      })
+    ).rejects.toThrow('Invalid sessionId')
   })
 
   it('should get recent events', async () => {

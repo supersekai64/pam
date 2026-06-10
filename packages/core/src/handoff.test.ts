@@ -71,6 +71,28 @@ describe('handoff', () => {
     expect(handoffs).toHaveLength(2)
   })
 
+  it('should filter open handoffs by project path', async () => {
+    const projectA = join(tempDir, 'project-a')
+    const projectB = join(tempDir, 'project-b')
+
+    const handoffA = await beginHandoff(
+      basePath,
+      'Project A',
+      'claude-code',
+      undefined,
+      undefined,
+      projectA
+    )
+    await beginHandoff(basePath, 'Project B', 'codex', undefined, undefined, projectB)
+
+    const openA = await getOpenHandoff(basePath, projectA)
+    const listA = await listHandoffs(basePath, undefined, projectA)
+
+    expect(openA?.id).toBe(handoffA.id)
+    expect(listA).toHaveLength(1)
+    expect(listA[0].project_path).toBe(projectA)
+  })
+
   it('should filter handoffs by status', async () => {
     const h1 = await beginHandoff(basePath, 'First', 'claude-code')
     await beginHandoff(basePath, 'Second', 'codex')
@@ -82,5 +104,11 @@ describe('handoff', () => {
 
     expect(open).toHaveLength(1)
     expect(accepted).toHaveLength(1)
+  })
+
+  it('should reject unsafe handoff ids', async () => {
+    await expect(acceptHandoff(basePath, '../outside', 'opencode')).rejects.toThrow(
+      'Invalid handoffId'
+    )
   })
 })

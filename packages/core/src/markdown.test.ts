@@ -30,6 +30,49 @@ This is the memory content.`
     expect(memory.content).toBe('This is the memory content.')
   })
 
+  it('should parse lifecycle metadata', () => {
+    const raw = `---
+id: mem_child
+type: decision
+scope: project
+status: active
+created_at: '2026-01-01T00:00:00.000Z'
+updated_at: '2026-01-01T00:00:00.000Z'
+tags: []
+source: manual
+supersedes: mem_parent
+superseded_by: mem_next
+salience: 0.8
+access_count: 3
+last_accessed_at: '2026-01-02T00:00:00.000Z'
+---
+
+Lifecycle content.`
+
+    const memory = parseMarkdown(raw)
+
+    expect(memory.metadata.supersedes).toBe('mem_parent')
+    expect(memory.metadata.superseded_by).toBe('mem_next')
+    expect(memory.metadata.salience).toBe(0.8)
+    expect(memory.metadata.access_count).toBe(3)
+    expect(memory.metadata.last_accessed_at).toBe('2026-01-02T00:00:00.000Z')
+  })
+
+  it('should ignore invalid optional numeric lifecycle metadata', () => {
+    const raw = `---
+id: mem_bad_numbers
+salience: nope
+access_count: -1
+---
+
+Content.`
+
+    const memory = parseMarkdown(raw)
+
+    expect(memory.metadata.salience).toBeUndefined()
+    expect(memory.metadata.access_count).toBeUndefined()
+  })
+
   it('should use defaults for missing fields', () => {
     const raw = `---
 id: mem_xyz
@@ -84,6 +127,11 @@ describe('serializeMarkdown', () => {
         updated_at: '2026-01-01T00:00:00.000Z',
         tags: ['round', 'trip'],
         source: 'manual',
+        supersedes: 'mem_old',
+        superseded_by: 'mem_new',
+        salience: 0.7,
+        access_count: 2,
+        last_accessed_at: '2026-01-02T00:00:00.000Z',
       },
       content: 'Round trip content',
     }
@@ -94,6 +142,11 @@ describe('serializeMarkdown', () => {
     expect(parsed.metadata.id).toBe(original.metadata.id)
     expect(parsed.metadata.type).toBe(original.metadata.type)
     expect(parsed.metadata.tags).toEqual(original.metadata.tags)
+    expect(parsed.metadata.supersedes).toBe(original.metadata.supersedes)
+    expect(parsed.metadata.superseded_by).toBe(original.metadata.superseded_by)
+    expect(parsed.metadata.salience).toBe(original.metadata.salience)
+    expect(parsed.metadata.access_count).toBe(original.metadata.access_count)
+    expect(parsed.metadata.last_accessed_at).toBe(original.metadata.last_accessed_at)
     expect(parsed.content).toBe(original.content)
   })
 })

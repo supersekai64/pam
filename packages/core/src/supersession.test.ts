@@ -69,6 +69,39 @@ describe('supersession', () => {
     expect(chain[2].metadata.id).toBe(result2!.newMemory.metadata.id)
   })
 
+  it('should get supersession chain from any version', async () => {
+    const v1 = await createMemory(basePath, {
+      type: 'decision',
+      scope: 'project',
+      content: 'Version 1',
+    })
+
+    const result1 = await supersedeMemory(basePath, v1.metadata.id, {
+      type: 'decision',
+      scope: 'project',
+      content: 'Version 2',
+    })
+
+    const result2 = await supersedeMemory(basePath, result1!.newMemory.metadata.id, {
+      type: 'decision',
+      scope: 'project',
+      content: 'Version 3',
+    })
+
+    for (const id of [
+      v1.metadata.id,
+      result1!.newMemory.metadata.id,
+      result2!.newMemory.metadata.id,
+    ]) {
+      const chain = await getSupersessionChain(basePath, id)
+      expect(chain.map((memory) => memory.metadata.id)).toEqual([
+        v1.metadata.id,
+        result1!.newMemory.metadata.id,
+        result2!.newMemory.metadata.id,
+      ])
+    }
+  })
+
   it('should get latest version', async () => {
     const v1 = await createMemory(basePath, {
       type: 'decision',
@@ -87,5 +120,22 @@ describe('supersession', () => {
     expect(latest).not.toBeNull()
     expect(latest!.metadata.id).toBe(result1!.newMemory.metadata.id)
     expect(latest!.content).toBe('Version 2')
+  })
+
+  it('should reject invalid supersession salience', async () => {
+    const oldMemory = await createMemory(basePath, {
+      type: 'decision',
+      scope: 'project',
+      content: 'Version 1',
+    })
+
+    await expect(
+      supersedeMemory(basePath, oldMemory.metadata.id, {
+        type: 'decision',
+        scope: 'project',
+        content: 'Version 2',
+        salience: 2,
+      })
+    ).rejects.toThrow('Invalid salience')
   })
 })

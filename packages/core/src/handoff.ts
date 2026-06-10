@@ -14,7 +14,8 @@ export async function beginHandoff(
   summary: string,
   agentFrom?: string,
   openQuestions?: string[],
-  nextSteps?: string[]
+  nextSteps?: string[],
+  projectPath: string = process.cwd()
 ): Promise<Handoff> {
   const handoffsDir = join(basePath, HANDOFFS_DIR)
 
@@ -29,7 +30,7 @@ export async function beginHandoff(
 
   const handoff: Handoff = {
     id,
-    project_path: process.cwd(),
+    project_path: projectPath,
     status: 'open',
     created_at: now,
     agent_from: agentFrom,
@@ -52,6 +53,8 @@ export async function acceptHandoff(
   handoffId: string,
   agentTo?: string
 ): Promise<Handoff | null> {
+  assertSafeFileId(handoffId, 'handoffId')
+
   const handoffsDir = join(basePath, HANDOFFS_DIR)
   const filePath = join(handoffsDir, `${handoffId}.json`)
 
@@ -78,7 +81,10 @@ export async function acceptHandoff(
 /**
  * Get the latest open handoff
  */
-export async function getOpenHandoff(basePath: string): Promise<Handoff | null> {
+export async function getOpenHandoff(
+  basePath: string,
+  projectPath?: string
+): Promise<Handoff | null> {
   const handoffsDir = join(basePath, HANDOFFS_DIR)
 
   if (!existsSync(handoffsDir)) {
@@ -97,8 +103,8 @@ export async function getOpenHandoff(basePath: string): Promise<Handoff | null> 
   }
 
   // Sort by created_at descending and find the first open one
-  handoffs.sort((a, b) => b.created_at.localeCompare(a.created_at))
-  return handoffs.find((h) => h.status === 'open') ?? null
+  handoffs.sort(compareHandoffsDesc)
+  return handoffs.find((h) => h.status === 'open' && matchesProject(h, projectPath)) ?? null
 }
 
 /**
@@ -106,7 +112,8 @@ export async function getOpenHandoff(basePath: string): Promise<Handoff | null> 
  */
 export async function listHandoffs(
   basePath: string,
-  status?: HandoffStatus
+  status?: HandoffStatus,
+  projectPath?: string
 ): Promise<Handoff[]> {
   const handoffsDir = join(basePath, HANDOFFS_DIR)
 
@@ -123,23 +130,20 @@ export async function listHandoffs(
     const raw = await readFile(filePath, 'utf-8')
     const handoff: Handoff = JSON.parse(raw)
 
-    if (!status || handoff.status === status) {
+    if ((!status || handoff.status === status) && matchesProject(handoff, projectPath)) {
       handoffs.push(handoff)
     }
   }
 
   // Sort by created_at descending
-  handoffs.sort((a, b) => b.created_at.localeCompare(a.created_at))
+  handoffs.sort(compareHandoffsDesc)
   return handoffs
 }
 
 /**
  * Expire old open handoffs (older than maxAgeDays)
  */
-export async function expireOldHandoffs(
-  basePath: string,
-  maxAgeDays: number = 7
-): Promise<number> {
+export async function expireOldHandoffs(basePath: string, maxAgeDays: number = 7): Promise<number> {
   const handoffsDir = join(basePath, HANDOFFS_DIR)
 
   if (!existsSync(handoffsDir)) {
@@ -169,4 +173,19 @@ export async function expireOldHandoffs(
   }
 
   return expiredCount
+}
+
+function matchesProject(handoff: Handoff, projectPath?: string): boolean {
+  return !projectPath || handoff.project_path === projectPath
+}
+
+function compareHandoffsDesc(a: Handoff, b: Handoff): number {
+  const timestampCompare = b.created_at.localeCompare(a.created_at)
+  return timestampCompare || b.id.localeCompare(a.id)
+}
+
+function assertSafeFileId(id: string, name: string): void {
+  if (!/^[A-Za-z0-9_.-]+$/.test(id)) {
+    throw new Error(`Invalid ${name}: ${id}`)
+  }
 }

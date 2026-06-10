@@ -7,6 +7,7 @@ import {
   getProjectMemoryPath,
   assertMemoryType,
   assertMemoryScope,
+  assertSalience,
 } from '@pamh/core'
 
 export function registerSupersedeCommand(program: Command) {
@@ -16,7 +17,7 @@ export function registerSupersedeCommand(program: Command) {
     .command('create <old_id>')
     .description('Create a new memory that supersedes an existing one')
     .option('-t, --type <type>', 'Memory type (required)')
-    .option('-s, --scope <scope>', 'Memory scope', 'project')
+    .option('-s, --scope <scope>', 'Memory scope')
     .option('-c, --content <content>', 'Memory content (required)')
     .option('--tags <tags>', 'Comma-separated tags')
     .option('--salience <salience>', 'Importance score (0-1)', '0.5')
@@ -27,12 +28,19 @@ export function registerSupersedeCommand(program: Command) {
         process.exit(1)
       }
 
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+      const useProject = options.project || options.scope === 'project'
+      const basePath = useProject ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
 
       const type = assertMemoryType(options.type)
-      const scope = assertMemoryScope(options.scope)
+      const scope = assertMemoryScope(options.scope ?? (useProject ? 'project' : 'global'))
       const tags = options.tags ? options.tags.split(',').map((t: string) => t.trim()) : []
-      const salience = parseFloat(options.salience)
+      let salience: number
+      try {
+        salience = assertSalience(options.salience)
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error))
+        process.exit(1)
+      }
 
       const result = await supersedeMemory(basePath, oldId, {
         type,

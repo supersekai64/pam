@@ -9,6 +9,7 @@ import {
   assertMemoryScope,
   assertMemoryStatus,
   assertMemoryType,
+  assertSalience,
   type CreateMemoryInput,
   type Memory,
   type UpdateMemoryInput,
@@ -95,6 +96,7 @@ export async function createMemory(basePath: string, input: CreateMemoryInput): 
   const type = assertMemoryType(input.type)
   const scope = assertMemoryScope(input.scope)
   const status = input.status ? assertMemoryStatus(input.status) : 'active'
+  const salience = assertSalience(input.salience ?? 0.5)
   const id = generateId()
   const now = new Date().toISOString()
 
@@ -108,7 +110,7 @@ export async function createMemory(basePath: string, input: CreateMemoryInput): 
       updated_at: now,
       tags: input.tags ?? [],
       source: input.source ?? 'manual',
-      salience: input.salience ?? 0.5,
+      salience,
       access_count: 0,
       last_accessed_at: now,
       supersedes: input.supersedes,

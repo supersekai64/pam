@@ -53,6 +53,8 @@ The server uses the current working directory as the project root. Project memor
 - `forget_sweep` - Run configurable memory decay cleanup
 - `record_hook_event` - Record agent lifecycle hook events for capture workflows
 
+`add_memory` accepts `content`, `type`, optional `scope`, `tags`, and `salience`. Use `supersede_memory` instead of `add_memory` when a new memory replaces an existing one, so both sides of the supersession chain are maintained.
+
 ## Capture Model
 
 PAMH supports three capture modes configured in `.ai-memory/auto-capture.yaml`:

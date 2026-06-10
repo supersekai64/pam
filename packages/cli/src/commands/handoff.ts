@@ -25,17 +25,23 @@ export function registerHandoffCommand(program: Command) {
         process.exit(1)
       }
 
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+      const projectPath = getProjectMemoryPath(process.cwd())
+      const basePath = options.project ? projectPath : getGlobalMemoryPath()
 
-      const openQuestions = options.questions ? options.questions.split(',').map((s: string) => s.trim()) : undefined
-      const nextSteps = options.nextSteps ? options.nextSteps.split(',').map((s: string) => s.trim()) : undefined
+      const openQuestions = options.questions
+        ? options.questions.split(',').map((s: string) => s.trim())
+        : undefined
+      const nextSteps = options.nextSteps
+        ? options.nextSteps.split(',').map((s: string) => s.trim())
+        : undefined
 
       const handoff = await beginHandoff(
         basePath,
         options.summary,
         options.agent,
         openQuestions,
-        nextSteps
+        nextSteps,
+        projectPath
       )
 
       console.log(`Handoff created: ${handoff.id}`)
@@ -56,9 +62,10 @@ export function registerHandoffCommand(program: Command) {
     .option('-a, --agent <agent>', 'Agent name (e.g. claude-code, codex)')
     .option('--project', 'Use project memory instead of global')
     .action(async (options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+      const projectPath = getProjectMemoryPath(process.cwd())
+      const basePath = options.project ? projectPath : getGlobalMemoryPath()
 
-      const openHandoff = await getOpenHandoff(basePath)
+      const openHandoff = await getOpenHandoff(basePath, projectPath)
       if (!openHandoff) {
         console.log('No open handoff found')
         return
@@ -88,9 +95,10 @@ export function registerHandoffCommand(program: Command) {
     .option('--status <status>', 'Filter by status (open, accepted, expired)')
     .option('--project', 'Use project memory instead of global')
     .action(async (options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+      const projectPath = getProjectMemoryPath(process.cwd())
+      const basePath = options.project ? projectPath : getGlobalMemoryPath()
 
-      const handoffs = await listHandoffs(basePath, options.status)
+      const handoffs = await listHandoffs(basePath, options.status, projectPath)
 
       if (handoffs.length === 0) {
         console.log('No handoffs found')

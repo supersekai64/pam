@@ -56,8 +56,8 @@ memory add -t <type> -c <content> [options]
 - `-c, --content <content>` - Memory content (required)
 - `-s, --scope <scope>` - Memory scope: global, project (default: global)
 - `--tags <tags>` - Comma-separated tags
+- `--salience <score>` - Importance score from `0` to `1` (default: `0.5`)
 - `--project` - Use project memory instead of global
-- `--physical` - Physically remove the Markdown file and index row
 
 **Example:**
 
@@ -355,7 +355,7 @@ Create a new memory that replaces an existing memory. The old memory is archived
 **Options:**
 
 - `-t, --type <type>` - Memory type (required)
-- `-s, --scope <scope>` - Memory scope (default: `project`)
+- `-s, --scope <scope>` - Memory scope (defaults to `project` with `--project`, otherwise `global`)
 - `-c, --content <content>` - New memory content (required)
 - `--tags <tags>` - Comma-separated tags
 - `--salience <salience>` - Importance score from `0` to `1` (default: `0.5`)

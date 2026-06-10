@@ -2,7 +2,14 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { parseMarkdown, serializeMarkdown } from './markdown.js'
 import { findMemoryFile } from './storage.js'
 import { MemoryIndex } from './indexer.js'
-import type { Memory, CreateMemoryInput } from './types.js'
+import {
+  assertMemoryScope,
+  assertMemoryStatus,
+  assertMemoryType,
+  assertSalience,
+  type Memory,
+  type CreateMemoryInput,
+} from './types.js'
 import { generateId } from './id.js'
 import { join } from 'node:path'
 import { mkdir } from 'node:fs/promises'
@@ -31,19 +38,23 @@ export async function supersedeMemory(
   // Create the new memory with supersedes field
   const newId = generateId()
   const now = new Date().toISOString()
+  const type = assertMemoryType(newInput.type)
+  const scope = assertMemoryScope(newInput.scope)
+  const status = newInput.status ? assertMemoryStatus(newInput.status) : 'active'
+  const salience = assertSalience(newInput.salience ?? 0.5)
 
   const newMemory: Memory = {
     metadata: {
       id: newId,
-      type: newInput.type,
-      scope: newInput.scope,
-      status: newInput.status ?? 'active',
+      type,
+      scope,
+      status,
       created_at: now,
       updated_at: now,
       tags: newInput.tags ?? [],
       source: newInput.source ?? 'manual',
       supersedes: oldId,
-      salience: newInput.salience ?? 0.5,
+      salience,
       access_count: 0,
       last_accessed_at: now,
     },
@@ -77,10 +88,7 @@ export async function supersedeMemory(
 /**
  * Get the supersession chain for a memory (all versions from oldest to newest)
  */
-export async function getSupersessionChain(
-  basePath: string,
-  memoryId: string
-): Promise<Memory[]> {
+export async function getSupersessionChain(basePath: string, memoryId: string): Promise<Memory[]> {
   const chain: Memory[] = []
   let currentId: string | undefined = memoryId
 
@@ -103,9 +111,10 @@ export async function getSupersessionChain(
   if (chain.length > 0) {
     const result: Memory[] = [chain[0]]
     let nextId = chain[0].metadata.superseded_by
+    const forwardVisited = new Set<string>([chain[0].metadata.id])
 
-    while (nextId && !visited.has(nextId)) {
-      visited.add(nextId)
+    while (nextId && !forwardVisited.has(nextId)) {
+      forwardVisited.add(nextId)
       const filePath = await findMemoryFile(basePath, nextId)
       if (!filePath) break
 
@@ -125,10 +134,7 @@ export async function getSupersessionChain(
 /**
  * Get the latest version of a memory (follows superseded_by chain)
  */
-export async function getLatestVersion(
-  basePath: string,
-  memoryId: string
-): Promise<Memory | null> {
+export async function getLatestVersion(basePath: string, memoryId: string): Promise<Memory | null> {
   let currentId = memoryId
   const visited = new Set<string>()
 

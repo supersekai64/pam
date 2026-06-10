@@ -77,6 +77,7 @@ export function createPamhMcpServer(context: McpToolContext) {
         type: z.string(),
         scope: z.enum(['global', 'project']).default('project'),
         tags: z.array(z.string()).optional(),
+        salience: z.number().min(0).max(1).optional(),
       },
     },
     async (input) => jsonResult(await addMemory(input, context))
@@ -159,7 +160,8 @@ export function createPamhMcpServer(context: McpToolContext) {
     'get_supersession_chain',
     {
       title: 'Get Supersession Chain',
-      description: 'Get the full supersession chain for a memory (all versions from oldest to newest).',
+      description:
+        'Get the full supersession chain for a memory (all versions from oldest to newest).',
       inputSchema: {
         memory_id: z.string(),
         scope: scopeSchema,
@@ -222,11 +224,11 @@ export function createPamhMcpServer(context: McpToolContext) {
       description:
         'Run a forget sweep to soft-delete memories below the decay threshold. Use to clean up obsolete memories.',
       inputSchema: {
-        lambda: z.number().optional(),
-        sigma: z.number().optional(),
-        mu: z.number().optional(),
-        cold_threshold: z.number().optional(),
-        hard_delete_after_days: z.number().int().positive().optional(),
+        lambda: z.number().min(0).optional(),
+        sigma: z.number().min(0).optional(),
+        mu: z.number().min(0).optional(),
+        cold_threshold: z.number().min(0).max(1).optional(),
+        hard_delete_after_days: z.number().int().min(0).optional(),
         dry_run: z.boolean().optional(),
         scope: scopeSchema,
       },

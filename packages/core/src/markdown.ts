@@ -21,8 +21,11 @@ export function parseMarkdown(raw: string): Memory {
     source: data.source ?? 'manual',
     supersedes: data.supersedes ? String(data.supersedes) : undefined,
     superseded_by: data.superseded_by ? String(data.superseded_by) : undefined,
-    salience: data.salience === undefined ? undefined : Number(data.salience),
-    access_count: data.access_count === undefined ? undefined : Number(data.access_count),
+    salience: parseOptionalNumber(data.salience, (value) => value >= 0 && value <= 1),
+    access_count: parseOptionalNumber(
+      data.access_count,
+      (value) => Number.isInteger(value) && value >= 0
+    ),
     last_accessed_at: data.last_accessed_at ? String(data.last_accessed_at) : undefined,
   }
 
@@ -56,4 +59,16 @@ export function serializeMarkdown(memory: Memory): string {
   }
 
   return matter.stringify(memory.content, frontmatter)
+}
+
+function parseOptionalNumber(
+  value: unknown,
+  isValid: (value: number) => boolean
+): number | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined
+  }
+
+  const number = Number(value)
+  return Number.isFinite(number) && isValid(number) ? number : undefined
 }

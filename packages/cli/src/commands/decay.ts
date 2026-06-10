@@ -22,12 +22,18 @@ export function registerDecayCommand(program: Command) {
     .action(async (options) => {
       const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
 
-      const config: DecayConfig = {
-        lambda: parseFloat(options.lambda),
-        sigma: parseFloat(options.sigma),
-        mu: parseFloat(options.mu),
-        coldThreshold: parseFloat(options.threshold),
-        hardDeleteAfterDays: parseInt(options.hardDeleteDays, 10),
+      let config: DecayConfig
+      try {
+        config = {
+          lambda: parseMinimum(options.lambda, 'lambda', 0),
+          sigma: parseMinimum(options.sigma, 'sigma', 0),
+          mu: parseMinimum(options.mu, 'mu', 0),
+          coldThreshold: parseRange(options.threshold, 'threshold', 0, 1),
+          hardDeleteAfterDays: parseIntegerMinimum(options.hardDeleteDays, 'hard-delete-days', 0),
+        }
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error))
+        process.exit(1)
       }
 
       console.log('Running forget sweep...')
@@ -56,4 +62,28 @@ export function registerDecayCommand(program: Command) {
         })
       }
     })
+}
+
+function parseMinimum(value: string, name: string, minimum: number): number {
+  const number = Number(value)
+  if (!Number.isFinite(number) || number < minimum) {
+    throw new Error(`Invalid ${name}: ${value}. Must be >= ${minimum}.`)
+  }
+  return number
+}
+
+function parseRange(value: string, name: string, minimum: number, maximum: number): number {
+  const number = Number(value)
+  if (!Number.isFinite(number) || number < minimum || number > maximum) {
+    throw new Error(`Invalid ${name}: ${value}. Must be between ${minimum} and ${maximum}.`)
+  }
+  return number
+}
+
+function parseIntegerMinimum(value: string, name: string, minimum: number): number {
+  const number = Number(value)
+  if (!Number.isInteger(number) || number < minimum) {
+    throw new Error(`Invalid ${name}: ${value}. Must be an integer >= ${minimum}.`)
+  }
+  return number
 }

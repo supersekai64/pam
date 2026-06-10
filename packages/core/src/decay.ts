@@ -1,24 +1,23 @@
-import { readFile, writeFile, readdir } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFile, writeFile } from 'node:fs/promises'
 import { parseMarkdown, serializeMarkdown } from './markdown.js'
 import { MemoryIndex } from './indexer.js'
+import { findMemoryFile, listMemories } from './storage.js'
 import type { Memory } from './types.js'
 
 // Decay M8 parameters (configurable)
 export interface DecayConfig {
-  lambda: number  // Temporal decay rate (default: 0.02)
-  sigma: number   // Access reinforcement weight (default: 0.6)
-  mu: number      // Access decay rate (default: 0.04)
-  coldThreshold: number  // Score below which to soft-delete (default: 0.20)
-  hardDeleteAfterDays: number  // Days after soft-delete to hard-delete (default: 180)
+  lambda: number // Temporal decay rate (default: 0.02)
+  sigma: number // Access reinforcement weight (default: 0.6)
+  mu: number // Access decay rate (default: 0.04)
+  coldThreshold: number // Score below which to soft-delete (default: 0.20)
+  hardDeleteAfterDays: number // Days after soft-delete to hard-delete (default: 180)
 }
 
 const DEFAULT_CONFIG: DecayConfig = {
   lambda: 0.02,
   sigma: 0.6,
   mu: 0.04,
-  coldThreshold: 0.20,
+  coldThreshold: 0.2,
   hardDeleteAfterDays: 180,
 }
 
@@ -27,6 +26,7 @@ const DEFAULT_CONFIG: DecayConfig = {
  * score = salience · exp(−λΔt) + σ · log(1+access_count) · exp(−μ · days_since_access)
  */
 export function calculateDecayScore(memory: Memory, config: DecayConfig = DEFAULT_CONFIG): number {
+  const normalizedConfig = normalizeDecayConfig(config)
   const now = Date.now()
   const createdAt = new Date(memory.metadata.created_at).getTime()
   const lastAccessedAt = memory.metadata.last_accessed_at
@@ -40,9 +40,11 @@ export function calculateDecayScore(memory: Memory, config: DecayConfig = DEFAUL
   const accessCount = memory.metadata.access_count ?? 0
 
   // M8 formula
-  const temporalDecay = salience * Math.exp(-config.lambda * daysSinceCreation)
+  const temporalDecay = salience * Math.exp(-normalizedConfig.lambda * daysSinceCreation)
   const accessReinforcement =
-    config.sigma * Math.log(1 + accessCount) * Math.exp(-config.mu * daysSinceAccess)
+    normalizedConfig.sigma *
+    Math.log(1 + accessCount) *
+    Math.exp(-normalizedConfig.mu * daysSinceAccess)
 
   return temporalDecay + accessReinforcement
 }
@@ -56,6 +58,10 @@ export async function recordAccess(basePath: string, memoryId: string): Promise<
 
   const raw = await readFile(filePath, 'utf-8')
   const memory = parseMarkdown(raw)
+
+  if (memory.metadata.status !== 'active') {
+    return memory
+  }
 
   memory.metadata.access_count = (memory.metadata.access_count ?? 0) + 1
   memory.metadata.last_accessed_at = new Date().toISOString()
@@ -89,7 +95,8 @@ export async function forgetSweep(
     preserved: [] as Memory[],
   }
 
-  const memories = await listAllMemories(basePath)
+  const normalizedConfig = normalizeDecayConfig(config)
+  const memories = await listMemories(basePath)
   const now = Date.now()
 
   for (const memory of memories) {
@@ -99,7 +106,7 @@ export async function forgetSweep(
       if (memory.metadata.status === 'archived' && memory.metadata.updated_at) {
         const daysSinceArchive =
           (now - new Date(memory.metadata.updated_at).getTime()) / (1000 * 60 * 60 * 24)
-        if (daysSinceArchive > config.hardDeleteAfterDays) {
+        if (daysSinceArchive > normalizedConfig.hardDeleteAfterDays) {
           if (!dryRun) {
             await hardDeleteMemory(basePath, memory.metadata.id)
           }
@@ -118,9 +125,9 @@ export async function forgetSweep(
     }
 
     // Calculate decay score
-    const score = calculateDecayScore(memory, config)
+    const score = calculateDecayScore(memory, normalizedConfig)
 
-    if (score < config.coldThreshold) {
+    if (score < normalizedConfig.coldThreshold) {
       // Soft-delete
       if (!dryRun) {
         await softDeleteMemory(basePath, memory.metadata.id)
@@ -169,69 +176,36 @@ async function hardDeleteMemory(basePath: string, memoryId: string): Promise<voi
   index.close()
 }
 
-/**
- * List all memories in a base path
- */
-async function listAllMemories(basePath: string): Promise<Memory[]> {
-  const memories: Memory[] = []
-  const subdirs = [
-    'decisions',
-    'knowledge',
-    'mistakes',
-    'patterns',
-    'preferences',
-    'projects',
-    'sessions',
-    'tasks',
-    'rules',
-    'clients',
-  ]
-
-  for (const subdir of subdirs) {
-    const dirPath = join(basePath, subdir)
-    if (!existsSync(dirPath)) continue
-
-    const files = await readdir(dirPath)
-    for (const file of files) {
-      if (!file.endsWith('.md')) continue
-
-      const filePath = join(dirPath, file)
-      try {
-        const raw = await readFile(filePath, 'utf-8')
-        const memory = parseMarkdown(raw)
-        memories.push(memory)
-      } catch {
-        // Skip invalid files
-      }
-    }
+function normalizeDecayConfig(config: DecayConfig): DecayConfig {
+  return {
+    lambda: assertFiniteMinimum(config.lambda, 'lambda', 0),
+    sigma: assertFiniteMinimum(config.sigma, 'sigma', 0),
+    mu: assertFiniteMinimum(config.mu, 'mu', 0),
+    coldThreshold: assertFiniteRange(config.coldThreshold, 'coldThreshold', 0, 1),
+    hardDeleteAfterDays: assertNonNegativeInteger(
+      config.hardDeleteAfterDays,
+      'hardDeleteAfterDays'
+    ),
   }
-
-  return memories
 }
 
-/**
- * Find a memory file by ID
- */
-async function findMemoryFile(basePath: string, id: string): Promise<string | null> {
-  const subdirs = [
-    'decisions',
-    'knowledge',
-    'mistakes',
-    'patterns',
-    'preferences',
-    'projects',
-    'sessions',
-    'tasks',
-    'rules',
-    'clients',
-  ]
-
-  for (const subdir of subdirs) {
-    const filePath = join(basePath, subdir, `${id}.md`)
-    if (existsSync(filePath)) {
-      return filePath
-    }
+function assertFiniteMinimum(value: number, name: string, minimum: number): number {
+  if (!Number.isFinite(value) || value < minimum) {
+    throw new Error(`Invalid ${name}: ${String(value)}. Must be >= ${minimum}.`)
   }
+  return value
+}
 
-  return null
+function assertFiniteRange(value: number, name: string, minimum: number, maximum: number): number {
+  if (!Number.isFinite(value) || value < minimum || value > maximum) {
+    throw new Error(`Invalid ${name}: ${String(value)}. Must be between ${minimum} and ${maximum}.`)
+  }
+  return value
+}
+
+function assertNonNegativeInteger(value: number, name: string): number {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`Invalid ${name}: ${String(value)}. Must be a non-negative integer.`)
+  }
+  return value
 }

@@ -196,6 +196,15 @@ describe('storage', () => {
           content: 'Invalid scope',
         })
       ).rejects.toThrow('Invalid memory scope')
+
+      await expect(
+        createMemory(basePath, {
+          type: 'knowledge',
+          scope: 'project',
+          content: 'Invalid salience',
+          salience: 2,
+        })
+      ).rejects.toThrow('Invalid salience')
     })
 
     it('should clear stale index rows during rebuild', async () => {

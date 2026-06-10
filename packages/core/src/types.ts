@@ -61,6 +61,22 @@ export function assertMemoryStatus(value: unknown): MemoryStatus {
   return value
 }
 
+export function assertSalience(value: unknown): number {
+  const salience = Number(value)
+  if (!Number.isFinite(salience) || salience < 0 || salience > 1) {
+    throw new Error(`Invalid salience: ${String(value)}. Must be a number between 0 and 1.`)
+  }
+  return salience
+}
+
+export function assertNonNegativeInteger(value: unknown, name: string): number {
+  const number = Number(value)
+  if (!Number.isInteger(number) || number < 0) {
+    throw new Error(`Invalid ${name}: ${String(value)}. Must be a non-negative integer.`)
+  }
+  return number
+}
+
 export interface MemoryMetadata {
   id: string
   type: MemoryType
@@ -71,12 +87,12 @@ export interface MemoryMetadata {
   tags: string[]
   source: string
   // Supersession chain (conflict management)
-  supersedes?: string  // ID of the memory this one replaces
-  superseded_by?: string  // ID of the memory that replaced this one
+  supersedes?: string // ID of the memory this one replaces
+  superseded_by?: string // ID of the memory that replaced this one
   // Decay M8 (intelligent forgetting)
-  salience?: number  // Base importance score (0-1)
-  access_count?: number  // Number of times accessed
-  last_accessed_at?: string  // Last access timestamp
+  salience?: number // Base importance score (0-1)
+  access_count?: number // Number of times accessed
+  last_accessed_at?: string // Last access timestamp
 }
 
 export interface Memory {
@@ -91,8 +107,8 @@ export interface CreateMemoryInput {
   tags?: string[]
   source?: string
   status?: MemoryStatus
-  salience?: number  // Base importance score (0-1, default: 0.5)
-  supersedes?: string  // ID of the memory this one replaces
+  salience?: number // Base importance score (0-1, default: 0.5)
+  supersedes?: string // ID of the memory this one replaces
 }
 
 export interface UpdateMemoryInput {
@@ -100,7 +116,6 @@ export interface UpdateMemoryInput {
   tags?: string[]
   type?: MemoryType
   scope?: MemoryScope
-  supersedes?: string
 }
 
 // Handoff types (cross-agent context transfer)
@@ -112,9 +127,9 @@ export interface Handoff {
   status: HandoffStatus
   created_at: string
   accepted_at?: string
-  agent_from?: string  // e.g. "claude-code", "codex"
+  agent_from?: string // e.g. "claude-code", "codex"
   agent_to?: string
-  summary: string  // "Where you left off"
+  summary: string // "Where you left off"
   open_questions?: string[]
   next_steps?: string[]
 }

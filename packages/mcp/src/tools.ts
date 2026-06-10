@@ -7,7 +7,7 @@ import {
   getProjectMemoryPath,
   indexAllMemories,
   loadAutoCaptureConfig,
-  readMemory,
+  recordAccess,
   updateMemory,
   assertMemoryType,
   assertMemoryScope,
@@ -49,8 +49,7 @@ export interface AddMemoryInput {
   scope?: 'global' | 'project'
   tags?: string[]
   status?: MemoryStatus
-  supersedes?: string  // ID of the memory this one supersedes
-  salience?: number  // Importance score (0-1, default: 0.5)
+  salience?: number // Importance score (0-1, default: 0.5)
 }
 
 export interface EditMemoryInput {
@@ -104,7 +103,7 @@ export async function searchMemory(input: SearchMemoryInput, context: McpToolCon
 
 export async function getMemory(input: GetMemoryInput, context: McpToolContext) {
   const basePath = resolveMemoryPath(context, input.scope)
-  return readMemory(basePath, input.id)
+  return recordAccess(basePath, input.id)
 }
 
 export async function addMemory(input: AddMemoryInput, context: McpToolContext) {
@@ -125,7 +124,6 @@ export async function addMemory(input: AddMemoryInput, context: McpToolContext) 
     tags: input.tags ?? [],
     source: 'mcp',
     status,
-    supersedes: input.supersedes,
     salience: input.salience ?? 0.5,
   })
 }
@@ -224,12 +222,13 @@ export async function handoffBeginTool(input: HandoffBeginInput, context: McpToo
     input.summary,
     input.agent_from,
     input.open_questions,
-    input.next_steps
+    input.next_steps,
+    resolveMemoryPath(context, 'project')
   )
 }
 
 export interface HandoffAcceptInput {
-  handoff_id?: string  // If not provided, accepts the latest open handoff
+  handoff_id?: string // If not provided, accepts the latest open handoff
   agent_to?: string
   scope?: 'global' | 'project'
 }
@@ -241,7 +240,7 @@ export async function handoffAcceptTool(input: HandoffAcceptInput, context: McpT
     return acceptHandoff(basePath, input.handoff_id, input.agent_to)
   }
 
-  const openHandoff = await getOpenHandoff(basePath)
+  const openHandoff = await getOpenHandoff(basePath, resolveMemoryPath(context, 'project'))
   if (!openHandoff) {
     return null
   }
@@ -267,7 +266,7 @@ export async function forgetSweepTool(input: ForgetSweepInput, context: McpToolC
     lambda: input.lambda ?? 0.02,
     sigma: input.sigma ?? 0.6,
     mu: input.mu ?? 0.04,
-    coldThreshold: input.cold_threshold ?? 0.20,
+    coldThreshold: input.cold_threshold ?? 0.2,
     hardDeleteAfterDays: input.hard_delete_after_days ?? 180,
   }
 

@@ -5,6 +5,7 @@ import {
   getProjectMemoryPath,
   MEMORY_SCOPES,
   MEMORY_TYPES,
+  assertSalience,
 } from '@pamh/core'
 
 export function registerAddCommand(program: Command) {
@@ -15,7 +16,6 @@ export function registerAddCommand(program: Command) {
     .requiredOption('-c, --content <content>', 'Memory content')
     .option('-s, --scope <scope>', 'Memory scope (global, project)', 'global')
     .option('--tags <tags>', 'Comma-separated tags')
-    .option('--supersedes <id>', 'ID of the memory this one supersedes')
     .option('--salience <score>', 'Importance score (0-1, default: 0.5)', '0.5')
     .option('--project', 'Use project memory instead of global')
     .action(async (options) => {
@@ -32,20 +32,22 @@ export function registerAddCommand(program: Command) {
       const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
 
       const tags = options.tags ? options.tags.split(',').map((t: string) => t.trim()) : []
-      const salience = parseFloat(options.salience)
+      let salience: number
+      try {
+        salience = assertSalience(options.salience)
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error))
+        process.exit(1)
+      }
 
       const memory = await createMemory(basePath, {
         type: options.type,
         scope: options.scope,
         content: options.content,
         tags,
-        supersedes: options.supersedes,
         salience,
       })
 
       console.log(`Memory created: ${memory.metadata.id}`)
-      if (options.supersedes) {
-        console.log(`Supersedes: ${options.supersedes}`)
-      }
     })
 }

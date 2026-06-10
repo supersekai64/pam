@@ -20,10 +20,10 @@ export interface HookEvent {
   id: string
   type: HookEventType
   timestamp: string
-  agent?: string  // e.g. "claude-code", "codex", "opencode"
+  agent?: string // e.g. "claude-code", "codex", "opencode"
   session_id?: string
   project_path?: string
-  data: Record<string, unknown>  // Event-specific data
+  data: Record<string, unknown> // Event-specific data
 }
 
 const SESSIONS_DIR = 'sessions'
@@ -47,9 +47,9 @@ export async function recordHookEvent(
   const timestamp = new Date().toISOString()
 
   const fullEvent: HookEvent = {
+    ...event,
     id,
     timestamp,
-    ...event,
   }
 
   // Write to observations log (append-only)
@@ -68,6 +68,8 @@ export async function recordHookEvent(
  * Create a session summary from hook events
  */
 async function createSessionSummary(basePath: string, sessionId: string): Promise<void> {
+  assertSafeFileId(sessionId, 'sessionId')
+
   const sessionsDir = join(basePath, SESSIONS_DIR)
 
   // Create sessions directory if it doesn't exist
@@ -118,10 +120,7 @@ function generateRuleBasedSummary(events: HookEvent[]): string {
 /**
  * Get all events for a session
  */
-export async function getSessionEvents(
-  basePath: string,
-  sessionId?: string
-): Promise<HookEvent[]> {
+export async function getSessionEvents(basePath: string, sessionId?: string): Promise<HookEvent[]> {
   const observationsDir = join(basePath, OBSERVATIONS_DIR)
 
   if (!existsSync(observationsDir)) {
@@ -156,13 +155,16 @@ export async function getSessionEvents(
   return events
 }
 
+function assertSafeFileId(id: string, name: string): void {
+  if (!/^[A-Za-z0-9_.-]+$/.test(id)) {
+    throw new Error(`Invalid ${name}: ${id}`)
+  }
+}
+
 /**
  * Get recent events (last N days)
  */
-export async function getRecentEvents(
-  basePath: string,
-  days: number = 7
-): Promise<HookEvent[]> {
+export async function getRecentEvents(basePath: string, days: number = 7): Promise<HookEvent[]> {
   const observationsDir = join(basePath, OBSERVATIONS_DIR)
 
   if (!existsSync(observationsDir)) {
