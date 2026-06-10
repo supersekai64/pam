@@ -9,6 +9,13 @@ import {
   listProjects,
   removeMemory,
   searchMemory,
+  supersedeMemoryTool,
+  getSupersessionChainTool,
+  getLatestVersionTool,
+  handoffBeginTool,
+  handoffAcceptTool,
+  forgetSweepTool,
+  recordHookEventTool,
   type McpToolContext,
 } from './tools.js'
 
@@ -127,6 +134,132 @@ export function createPamhMcpServer(context: McpToolContext) {
       },
     },
     async (input) => jsonResult(await compileMemoryContext(input, context))
+  )
+
+  // Supersession tools
+  server.registerTool(
+    'supersede_memory',
+    {
+      title: 'Supersede Memory',
+      description:
+        'Create a new memory that supersedes an existing one. Use when new information contradicts or updates an existing memory.',
+      inputSchema: {
+        old_id: z.string(),
+        content: z.string(),
+        type: z.string(),
+        scope: scopeSchema,
+        tags: z.array(z.string()).optional(),
+        salience: z.number().min(0).max(1).optional(),
+      },
+    },
+    async (input) => jsonResult(await supersedeMemoryTool(input, context))
+  )
+
+  server.registerTool(
+    'get_supersession_chain',
+    {
+      title: 'Get Supersession Chain',
+      description: 'Get the full supersession chain for a memory (all versions from oldest to newest).',
+      inputSchema: {
+        memory_id: z.string(),
+        scope: scopeSchema,
+      },
+    },
+    async (input) => jsonResult(await getSupersessionChainTool(input, context))
+  )
+
+  server.registerTool(
+    'get_latest_version',
+    {
+      title: 'Get Latest Version',
+      description: 'Get the latest version of a memory (follows superseded_by chain).',
+      inputSchema: {
+        memory_id: z.string(),
+        scope: scopeSchema,
+      },
+    },
+    async (input) => jsonResult(await getLatestVersionTool(input, context))
+  )
+
+  // Handoff tools
+  server.registerTool(
+    'handoff_begin',
+    {
+      title: 'Begin Handoff',
+      description:
+        'Begin a handoff for the next agent. Use when ending a session to provide context for the next agent.',
+      inputSchema: {
+        summary: z.string(),
+        agent_from: z.string().optional(),
+        open_questions: z.array(z.string()).optional(),
+        next_steps: z.array(z.string()).optional(),
+        scope: scopeSchema,
+      },
+    },
+    async (input) => jsonResult(await handoffBeginTool(input, context))
+  )
+
+  server.registerTool(
+    'handoff_accept',
+    {
+      title: 'Accept Handoff',
+      description:
+        'Accept an open handoff from a previous agent. Use when starting a session to see where the previous agent left off.',
+      inputSchema: {
+        handoff_id: z.string().optional(),
+        agent_to: z.string().optional(),
+        scope: scopeSchema,
+      },
+    },
+    async (input) => jsonResult(await handoffAcceptTool(input, context))
+  )
+
+  // Decay tools
+  server.registerTool(
+    'forget_sweep',
+    {
+      title: 'Forget Sweep',
+      description:
+        'Run a forget sweep to soft-delete memories below the decay threshold. Use to clean up obsolete memories.',
+      inputSchema: {
+        lambda: z.number().optional(),
+        sigma: z.number().optional(),
+        mu: z.number().optional(),
+        cold_threshold: z.number().optional(),
+        hard_delete_after_days: z.number().int().positive().optional(),
+        dry_run: z.boolean().optional(),
+        scope: scopeSchema,
+      },
+    },
+    async (input) => jsonResult(await forgetSweepTool(input, context))
+  )
+
+  // Hook tools (lifecycle events)
+  server.registerTool(
+    'record_hook_event',
+    {
+      title: 'Record Hook Event',
+      description:
+        'Record a lifecycle hook event (session-start, user-prompt, post-tool-use, session-end, etc.). Use for automatic memory capture.',
+      inputSchema: {
+        type: z.enum([
+          'session-start',
+          'user-prompt',
+          'pre-tool-use',
+          'post-tool-use',
+          'pre-compact',
+          'notification',
+          'stop',
+          'session-end',
+          'other',
+        ]),
+        agent: z.string().optional(),
+        session_id: z.string().optional(),
+        data: z.record(z.string(), z.unknown()).optional(),
+        scope: scopeSchema,
+      },
+    },
+    async (input) => jsonResult(await recordHookEventTool(input, context))
   )
 
   return server

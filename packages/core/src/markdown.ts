@@ -19,6 +19,11 @@ export function parseMarkdown(raw: string): Memory {
     updated_at: data.updated_at ?? new Date().toISOString(),
     tags: Array.isArray(data.tags) ? data.tags : [],
     source: data.source ?? 'manual',
+    supersedes: data.supersedes ? String(data.supersedes) : undefined,
+    superseded_by: data.superseded_by ? String(data.superseded_by) : undefined,
+    salience: data.salience === undefined ? undefined : Number(data.salience),
+    access_count: data.access_count === undefined ? undefined : Number(data.access_count),
+    last_accessed_at: data.last_accessed_at ? String(data.last_accessed_at) : undefined,
   }
 
   return {
@@ -28,7 +33,7 @@ export function parseMarkdown(raw: string): Memory {
 }
 
 export function serializeMarkdown(memory: Memory): string {
-  const frontmatter = {
+  const frontmatter: Record<string, unknown> = {
     id: memory.metadata.id,
     type: memory.metadata.type,
     scope: memory.metadata.scope,
@@ -37,6 +42,17 @@ export function serializeMarkdown(memory: Memory): string {
     updated_at: memory.metadata.updated_at,
     tags: memory.metadata.tags,
     source: memory.metadata.source,
+    supersedes: memory.metadata.supersedes,
+    superseded_by: memory.metadata.superseded_by,
+    salience: memory.metadata.salience,
+    access_count: memory.metadata.access_count,
+    last_accessed_at: memory.metadata.last_accessed_at,
+  }
+
+  for (const key of Object.keys(frontmatter)) {
+    if (frontmatter[key] === undefined) {
+      delete frontmatter[key]
+    }
   }
 
   return matter.stringify(memory.content, frontmatter)

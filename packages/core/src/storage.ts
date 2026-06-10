@@ -108,6 +108,10 @@ export async function createMemory(basePath: string, input: CreateMemoryInput): 
       updated_at: now,
       tags: input.tags ?? [],
       source: input.source ?? 'manual',
+      salience: input.salience ?? 0.5,
+      access_count: 0,
+      last_accessed_at: now,
+      supersedes: input.supersedes,
     },
     content: input.content,
   }

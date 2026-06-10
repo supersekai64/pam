@@ -344,6 +344,89 @@ memory context --max-tokens 2000 --output
 memory context --no-linked --no-search
 ```
 
+### Supersede Memory
+
+```bash
+memory supersede create <old_id> -t <type> -c <content> [options]
+```
+
+Create a new memory that replaces an existing memory. The old memory is archived and linked to the new version.
+
+**Options:**
+
+- `-t, --type <type>` - Memory type (required)
+- `-s, --scope <scope>` - Memory scope (default: `project`)
+- `-c, --content <content>` - New memory content (required)
+- `--tags <tags>` - Comma-separated tags
+- `--salience <salience>` - Importance score from `0` to `1` (default: `0.5`)
+- `--project` - Use project memory instead of global
+
+```bash
+memory supersede chain <memory_id> [options]
+memory supersede latest <memory_id> [options]
+```
+
+Show the full supersession chain or only the latest version.
+
+**Examples:**
+
+```bash
+memory supersede create mem_abc123 -t decision -c "Use SQLite for local indexing" --project
+memory supersede chain mem_abc123 --project
+memory supersede latest mem_abc123 --project
+```
+
+### Handoff
+
+```bash
+memory handoff begin -s <summary> [options]
+memory handoff accept [options]
+memory handoff list [options]
+```
+
+Create, accept, and list cross-agent handoffs so another agent can resume with current context.
+
+**Options:**
+
+- `-s, --summary <summary>` - Summary of where you left off (required for `begin`)
+- `-a, --agent <agent>` - Agent name for `begin` or `accept`
+- `-q, --questions <questions>` - Comma-separated open questions for `begin`
+- `-n, --next-steps <steps>` - Comma-separated next steps for `begin`
+- `--status <status>` - Filter `list` by `open`, `accepted`, or `expired`
+- `--project` - Use project memory instead of global
+
+**Examples:**
+
+```bash
+memory handoff begin --project -a opencode -s "Implemented storage changes" -n "Run release checks"
+memory handoff accept --project -a claude-code
+memory handoff list --project --status open
+```
+
+### Decay
+
+```bash
+memory decay sweep [options]
+```
+
+Run a forget sweep. Memories below the decay threshold are soft-deleted, while old archived memories can be physically removed after the configured retention period.
+
+**Options:**
+
+- `--lambda <lambda>` - Temporal decay rate (default: `0.02`)
+- `--sigma <sigma>` - Access reinforcement weight (default: `0.6`)
+- `--mu <mu>` - Access decay rate (default: `0.04`)
+- `--threshold <threshold>` - Cold threshold (default: `0.20`)
+- `--hard-delete-days <days>` - Days before hard-delete (default: `180`)
+- `--dry-run` - Preview without making changes
+- `--project` - Use project memory instead of global
+
+**Example:**
+
+```bash
+memory decay sweep --project --dry-run
+```
+
 ### Server
 
 ```bash

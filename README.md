@@ -146,6 +146,9 @@ memory init global
 - Export/import in ZIP, JSON, Markdown, and SQLite formats
 - Basic secret redaction
 - Context compilation
+- Supersession chains for updated or conflicting memories
+- Agent handoffs for cross-session context transfer
+- Configurable memory decay and forget sweeps
 - MCP stdio server
 - Local web UI via `memory ui`
 - Three capture modes: manual, assisted (default), and auto

@@ -25,6 +25,9 @@ import { registerSemanticCommand } from './commands/semantic.js'
 import { registerServerCommand } from './commands/server.js'
 import { registerUiCommand } from './commands/ui.js'
 import { registerStatusCommand } from './commands/status.js'
+import { registerHandoffCommand } from './commands/handoff.js'
+import { registerDecayCommand } from './commands/decay.js'
+import { registerSupersedeCommand } from './commands/supersede.js'
 
 const program = new Command()
 
@@ -53,5 +56,8 @@ registerSemanticCommand(program)
 registerServerCommand(program)
 registerUiCommand(program)
 registerStatusCommand(program)
+registerHandoffCommand(program)
+registerDecayCommand(program)
+registerSupersedeCommand(program)
 
 program.parse()

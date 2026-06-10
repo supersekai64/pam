@@ -59,3 +59,28 @@ export {
   type ConfigureProjectIntegrationsResult,
   type IntegrationResult,
 } from './integrations.js'
+export {
+  supersedeMemory,
+  getSupersessionChain,
+  getLatestVersion,
+} from './supersession.js'
+export {
+  beginHandoff,
+  acceptHandoff,
+  getOpenHandoff,
+  listHandoffs,
+  expireOldHandoffs,
+} from './handoff.js'
+export {
+  calculateDecayScore,
+  recordAccess,
+  forgetSweep,
+  type DecayConfig,
+} from './decay.js'
+export {
+  recordHookEvent,
+  getSessionEvents,
+  getRecentEvents,
+  type HookEvent,
+  type HookEventType,
+} from './hooks.js'

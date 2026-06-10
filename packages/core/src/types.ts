@@ -70,6 +70,13 @@ export interface MemoryMetadata {
   updated_at: string
   tags: string[]
   source: string
+  // Supersession chain (conflict management)
+  supersedes?: string  // ID of the memory this one replaces
+  superseded_by?: string  // ID of the memory that replaced this one
+  // Decay M8 (intelligent forgetting)
+  salience?: number  // Base importance score (0-1)
+  access_count?: number  // Number of times accessed
+  last_accessed_at?: string  // Last access timestamp
 }
 
 export interface Memory {
@@ -84,6 +91,8 @@ export interface CreateMemoryInput {
   tags?: string[]
   source?: string
   status?: MemoryStatus
+  salience?: number  // Base importance score (0-1, default: 0.5)
+  supersedes?: string  // ID of the memory this one replaces
 }
 
 export interface UpdateMemoryInput {
@@ -91,4 +100,21 @@ export interface UpdateMemoryInput {
   tags?: string[]
   type?: MemoryType
   scope?: MemoryScope
+  supersedes?: string
+}
+
+// Handoff types (cross-agent context transfer)
+export type HandoffStatus = 'open' | 'accepted' | 'expired'
+
+export interface Handoff {
+  id: string
+  project_path: string
+  status: HandoffStatus
+  created_at: string
+  accepted_at?: string
+  agent_from?: string  // e.g. "claude-code", "codex"
+  agent_to?: string
+  summary: string  // "Where you left off"
+  open_questions?: string[]
+  next_steps?: string[]
 }

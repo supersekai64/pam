@@ -45,6 +45,13 @@ The server uses the current working directory as the project root. Project memor
 - `delete_memory` - Logically delete a memory
 - `list_projects` - List current and linked projects
 - `compile_context` - Compile global, project, linked, and search context
+- `supersede_memory` - Create a new memory that supersedes an outdated one
+- `get_supersession_chain` - Return all versions in a supersession chain
+- `get_latest_version` - Resolve a memory to its latest version
+- `handoff_begin` - Record context for the next agent or session
+- `handoff_accept` - Accept an open handoff and retrieve its context
+- `forget_sweep` - Run configurable memory decay cleanup
+- `record_hook_event` - Record agent lifecycle hook events for capture workflows
 
 ## Capture Model
 
@@ -77,6 +84,16 @@ Example manual fallback:
 ```bash
 memory add --project -t session -s project --tags "opencode,setup" -c "Initialized a React project with Tailwind and shadcn components."
 ```
+
+## Supersession And Decay
+
+Agents should use `supersede_memory` instead of editing history when newer information replaces an older memory. PAMH archives the old memory and links both versions, so clients can inspect the full chain with `get_supersession_chain` or resolve the current version with `get_latest_version`.
+
+`forget_sweep` applies salience, age, and access-count decay to identify cold memories. Use `dry_run: true` before enabling cleanup in automated workflows.
+
+## Agent Handoff
+
+Use `handoff_begin` near the end of a session to persist a concise summary, open questions, and next steps. The next agent can call `handoff_accept` at startup to resume from the latest open handoff.
 
 ## Example Client Configuration
 
