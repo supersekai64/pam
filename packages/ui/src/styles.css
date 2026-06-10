@@ -214,6 +214,25 @@ h2 {
   background: rgba(234, 163, 95, 0.16);
 }
 
+.memory-row.proposed {
+  border-left: 4px solid #4a9eff;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-left: 0.5rem;
+}
+
+.badge.proposed {
+  background: #4a9eff;
+  color: #fff;
+}
+
 .row-title {
   font-weight: 800;
 }

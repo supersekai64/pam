@@ -279,9 +279,13 @@ function renderMemoryRow(memory: Memory | SearchResult): string {
   const metadata = 'metadata' in memory ? memory.metadata : memory
   const content = memory.content
   const selected = metadata.id === state.selectedId ? 'selected' : ''
+  const proposed = metadata.status === 'proposed' ? 'proposed' : ''
+  const statusBadge =
+    metadata.status === 'proposed' ? '<span class="badge proposed">PROPOSED</span>' : ''
+
   return `
-    <button class="memory-row ${selected}" data-memory-id="${metadata.id}">
-      <span class="row-title">${escapeHtml(metadata.type)} / ${escapeHtml(metadata.scope)}</span>
+    <button class="memory-row ${selected} ${proposed}" data-memory-id="${metadata.id}">
+      <span class="row-title">${escapeHtml(metadata.type)} / ${escapeHtml(metadata.scope)} ${statusBadge}</span>
       <span class="row-content">${escapeHtml(content.slice(0, 110))}</span>
       <span class="row-meta">${escapeHtml(metadata.status)} · ${escapeHtml(metadata.tags.join(', ') || 'no tags')}</span>
     </button>

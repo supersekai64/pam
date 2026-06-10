@@ -22,6 +22,8 @@ Use PAMH as the project memory layer.
 
 PAMH uses **assisted capture mode** by default: when you call \`add_memory\`, the memory is created with \`status: proposed\` and requires user approval before becoming active.
 
+**Language requirement**: Always write memory content in English, regardless of the conversation language.
+
 At the start of a task:
 - Search PAMH memory for relevant project context.
 - Use \`compile_context\` when broader context is useful.
