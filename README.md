@@ -61,6 +61,8 @@ memory server start
 
 Voir [docs/mcp.md](docs/mcp.md).
 
+PAMH does not automatically record every AI tool action. MCP clients must be configured to use PAMH, and the client or agent must explicitly call PAMH tools such as `add_memory`.
+
 ## UI Locale
 
 ```bash

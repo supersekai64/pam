@@ -112,3 +112,15 @@ memory context --query "architecture" --output
 ```
 
 This writes `compiled-context.md` to project memory.
+
+## Capture Control
+
+PAMH uses explicit capture by default. It does not scrape editor sessions, terminal output, or LLM conversations.
+
+Use one of these capture paths:
+
+- CLI: `memory add`
+- UI: `memory ui`
+- MCP: an agent calls `add_memory`
+
+Explicit capture keeps memory auditable and prevents accidental storage of private or transient information.

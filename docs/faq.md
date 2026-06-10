@@ -54,6 +54,16 @@ memory export backup.zip
 
 Yes. The MCP server exposes tools for adding, editing, deleting, searching, and compiling context.
 
+## Does PAMH automatically record OpenCode or other AI sessions?
+
+No. PAMH does not observe tools in the background. OpenCode, an IDE, or another agent must be configured as an MCP client and must explicitly call PAMH tools such as `add_memory`. You can always add memories manually with `memory add` or through `memory ui`.
+
+Example:
+
+```bash
+memory add --project -t session -s project --tags "opencode" -c "Implemented the initial React page with Tailwind and shadcn."
+```
+
 ## Should I commit `.ai-memory` to Git?
 
 That depends on the project. If memory contains only project knowledge and no secrets, committing it can make memory portable with the repository. Review `docs/security.md` before doing so.
