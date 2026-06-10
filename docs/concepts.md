@@ -113,6 +113,35 @@ memory context --query "architecture" --output
 
 This writes `compiled-context.md` to project memory.
 
+## Semantic Search
+
+PAMH uses vector embeddings for semantic search. By default, it runs a local embedding model with no external API calls.
+
+### Default: Local Embeddings
+
+- **Model**: `Xenova/all-MiniLM-L6-v2` (384 dimensions)
+- **Runtime**: ONNX via `@xenova/transformers`
+- **Storage**: SQLite with `sqlite-vec` extension
+- **First run**: Automatically downloads the model (~80MB)
+
+The model runs entirely on your machine. No data leaves your system.
+
+### Optional: OpenAI Embeddings
+
+You can switch to OpenAI's embedding API:
+
+```bash
+export EMBEDDING_PROVIDER=openai
+export OPENAI_API_KEY=your_key_here
+```
+
+This uses `text-embedding-3-small` (1536 dimensions) by default.
+
+### When to Use Each
+
+- **Local embeddings**: Default choice. Works offline, no API costs, privacy-friendly.
+- **OpenAI embeddings**: Higher quality for complex semantic queries, but requires network and API key.
+
 ## Capture Control
 
 PAMH uses explicit capture by default. It does not scrape editor sessions, terminal output, or LLM conversations.

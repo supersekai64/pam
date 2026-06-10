@@ -1,8 +1,8 @@
 # Portable AI Memory Hub (PAMH)
 
-Plateforme open-source pour une mémoire IA persistante, portable et indépendante des modèles.
+Open-source platform for persistent, portable, and model-independent AI memory.
 
-PAMH permet de conserver une mémoire contrôlable par l'utilisateur, utilisable depuis plusieurs LLMs, IDEs, agents et outils.
+PAMH lets you maintain user-controlled memory that works across multiple LLMs, IDEs, agents, and tools.
 
 ## Installation
 
@@ -14,7 +14,7 @@ pnpm link:cli
 
 `pnpm link:cli` exposes the `memory` command globally from `packages/cli`.
 
-## Usage Rapide
+## Quick Start
 
 ```bash
 memory init project
@@ -25,17 +25,18 @@ memory context --project --query "architecture" --output
 
 `memory init project` also creates best-effort agent and IDE integration files so MCP-compatible tools can discover PAMH with minimal manual setup.
 
-## Fonctionnalités MVP
+## Features
 
-- mémoire Markdown lisible par humain
-- index SQLite + FTS5
-- recherche texte, tags, scopes
-- recherche sémantique locale ou OpenAI
-- export/import ZIP, JSON, Markdown, plus SQLite export
-- redaction basique des secrets
-- compilation de contexte
-- serveur MCP stdio
-- UI web locale via `memory ui`
+- Human-readable Markdown memory storage
+- SQLite + FTS5 indexing
+- Text, tag, and scope search
+- Semantic search with local or OpenAI embeddings
+- Export/import in ZIP, JSON, Markdown, and SQLite formats
+- Basic secret redaction
+- Context compilation
+- MCP stdio server
+- Local web UI via `memory ui`
+- Three capture modes: manual, assisted (default), and auto
 
 ## Documentation
 
@@ -49,7 +50,7 @@ memory context --project --query "architecture" --output
 - [Concepts](docs/concepts.md)
 - [FAQ](docs/faq.md)
 
-## Exemples
+## Examples
 
 - [CLI Workflow](examples/cli-workflow.md)
 - [Export / Import](examples/export-import.md)
@@ -62,19 +63,35 @@ memory context --project --query "architecture" --output
 memory server start
 ```
 
-Voir [docs/mcp.md](docs/mcp.md).
+See [docs/mcp.md](docs/mcp.md).
 
 PAMH does not automatically record every AI tool action. MCP clients must be configured to use PAMH, and the client or agent must explicitly call PAMH tools such as `add_memory`.
 
-## UI Locale
+## Local UI
 
 ```bash
 memory ui --open
 ```
 
-Voir [docs/ui.md](docs/ui.md).
+See [docs/ui.md](docs/ui.md).
 
-## Développement
+## Semantic Search
+
+PAMH uses vector embeddings for semantic search:
+
+- **Default**: Local model `Xenova/all-MiniLM-L6-v2` (384 dimensions, runs offline)
+- **Optional**: OpenAI `text-embedding-3-small` (1536 dimensions, requires API key)
+
+To use OpenAI embeddings:
+
+```bash
+export EMBEDDING_PROVIDER=openai
+export OPENAI_API_KEY=your_key_here
+```
+
+See [docs/concepts.md](docs/concepts.md#semantic-search) for details.
+
+## Development
 
 ```bash
 pnpm build
@@ -89,16 +106,16 @@ pnpm release:check
 ```text
 pamh/
 ├── packages/
-│   ├── core/       # Stockage, indexation, recherche
-│   ├── api/        # API HTTP locale pour clients UI/Desktop/IDE
-│   ├── cli/        # Interface en ligne de commande
-│   ├── mcp/        # Serveur MCP
-│   └── ui/         # Interface web locale
+│   ├── core/       # Storage, indexing, search
+│   ├── api/        # Local HTTP API for UI/Desktop/IDE clients
+│   ├── cli/        # Command-line interface
+│   ├── mcp/        # MCP server
+│   └── ui/         # Local web interface
 ├── docs/           # Documentation
-├── examples/       # Exemples d'utilisation
-└── scripts/        # Scripts utilitaires
+├── examples/       # Usage examples
+└── scripts/        # Utility scripts
 ```
 
-## Licence
+## License
 
 MIT
