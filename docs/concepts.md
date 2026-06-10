@@ -87,21 +87,21 @@ PAMH searches for `.ai-memory/` by walking up the directory tree, similar to how
 When you initialize memory in a parent directory, all subdirectories automatically use that memory:
 
 ```text
-~/projects/client-app/
+~/projects/my-app/
   ├── .ai-memory/              ← Initialize here
-  ├── wordpress-plugin/        ← Uses parent memory
-  └── nextjs-admin/            ← Uses parent memory
+  ├── backend/                 ← Uses parent memory
+  └── frontend/                ← Uses parent memory
 ```
 
 ```bash
-cd ~/projects/client-app
+cd ~/projects/my-app
 memory init
 
-cd wordpress-plugin
-memory add -t decision -c "Use TypeScript"
-# → Stored in ~/projects/client-app/.ai-memory/
+cd backend
+memory add -t decision -c "Use PostgreSQL for the main database"
+# → Stored in ~/projects/my-app/.ai-memory/
 
-cd ../nextjs-admin
+cd ../frontend
 memory list
 # → Shows the same memory
 ```
@@ -111,17 +111,17 @@ memory list
 When you initialize memory in a specific subdirectory, that project gets its own isolated memory:
 
 ```text
-~/projects/client-app/
-  ├── wordpress-plugin/
+~/projects/my-app/
+  ├── backend/
   │   └── .ai-memory/          ← Initialize here for isolated memory
-  └── nextjs-admin/
+  └── frontend/
       └── .ai-memory/          ← Initialize here for isolated memory
 ```
 
 ```bash
-cd ~/projects/client-app/wordpress-plugin
+cd ~/projects/my-app/backend
 memory init
-# → Creates ~/projects/client-app/wordpress-plugin/.ai-memory/
+# → Creates ~/projects/my-app/backend/.ai-memory/
 # → This project now has its own isolated memory
 ```
 
@@ -131,7 +131,7 @@ Use `memory status` to see which memory directory is currently active:
 
 ```bash
 memory status
-# Using memory: ~/projects/client-app/.ai-memory/
+# Using memory: ~/projects/my-app/.ai-memory/
 # Global memory: ~/ai-memory/
 # Memories: 12 active, 3 proposed, 1 archived
 ```

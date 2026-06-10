@@ -60,15 +60,15 @@ PAMH searches for `.ai-memory/` by walking up the directory tree, similar to how
 **Example 1: Shared memory (monorepo)**
 
 ```bash
-cd ~/projects/client-app
+cd ~/projects/my-app
 memory init
-# → Creates ~/projects/client-app/.ai-memory/
+# → Creates ~/projects/my-app/.ai-memory/
 
-cd wordpress-plugin
-memory add -t decision -c "Use TypeScript"
-# → Uses ~/projects/client-app/.ai-memory/
+cd backend
+memory add -t decision -c "Use PostgreSQL for the main database"
+# → Uses ~/projects/my-app/.ai-memory/
 
-cd ../nextjs-admin
+cd ../frontend
 memory list
 # → Shows the same memory
 ```
@@ -76,9 +76,9 @@ memory list
 **Example 2: Isolated memory**
 
 ```bash
-cd ~/projects/client-app/wordpress-plugin
+cd ~/projects/my-app/backend
 memory init
-# → Creates ~/projects/client-app/wordpress-plugin/.ai-memory/
+# → Creates ~/projects/my-app/backend/.ai-memory/
 # → This project now has its own isolated memory
 ```
 

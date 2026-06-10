@@ -5,9 +5,9 @@
 You have a monorepo with multiple projects:
 
 ```text
-~/projects/client-app/
-  ├── wordpress-plugin/
-  └── nextjs-admin/
+~/projects/my-app/
+  ├── backend/
+  └── frontend/
 ```
 
 ## Setup
@@ -15,22 +15,22 @@ You have a monorepo with multiple projects:
 Initialize memory in the parent directory:
 
 ```bash
-cd ~/projects/client-app
+cd ~/projects/my-app
 memory init
 ```
 
-This creates `~/projects/client-app/.ai-memory/`.
+This creates `~/projects/my-app/.ai-memory/`.
 
 ## Usage
 
 From any subdirectory, PAMH automatically uses the parent memory:
 
 ```bash
-cd ~/projects/client-app/wordpress-plugin
-memory add -t decision -c "Use TypeScript"
-# → Stored in ~/projects/client-app/.ai-memory/
+cd ~/projects/my-app/backend
+memory add -t decision -c "Use PostgreSQL for the main database"
+# → Stored in ~/projects/my-app/.ai-memory/
 
-cd ~/projects/client-app/nextjs-admin
+cd ~/projects/my-app/frontend
 memory list
 # → Shows the same memory
 ```
@@ -40,9 +40,9 @@ memory list
 Use `memory status` to see which memory directory is currently active:
 
 ```bash
-cd ~/projects/client-app/wordpress-plugin
+cd ~/projects/my-app/backend
 memory status
-# Using memory: ~/projects/client-app/.ai-memory/
+# Using memory: ~/projects/my-app/.ai-memory/
 # Global memory: ~/ai-memory/
 # Memories: 1 active, 0 proposed, 0 archived, 0 deleted
 ```
@@ -52,15 +52,15 @@ memory status
 If you want isolated memory for a specific project:
 
 ```bash
-cd ~/projects/client-app/wordpress-plugin
+cd ~/projects/my-app/backend
 memory init
-# → Creates ~/projects/client-app/wordpress-plugin/.ai-memory/
+# → Creates ~/projects/my-app/backend/.ai-memory/
 # → Now this project has its own memory
 ```
 
 ```bash
 memory status
-# Using memory: ~/projects/client-app/wordpress-plugin/.ai-memory/
+# Using memory: ~/projects/my-app/backend/.ai-memory/
 # Global memory: ~/ai-memory/
 # Memories: 0 active, 0 proposed, 0 archived, 0 deleted
 ```

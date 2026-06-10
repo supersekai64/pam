@@ -81,14 +81,14 @@ That depends on the project. If memory contains only project knowledge and no se
 PAMH uses a `.git`-like discovery mechanism. Initialize memory in a parent directory, and all subdirectories will automatically use it:
 
 ```bash
-cd ~/projects/client-app
+cd ~/projects/my-app
 memory init
 
-cd wordpress-plugin
-memory add -t decision -c "Use TypeScript"
-# → Stored in ~/projects/client-app/.ai-memory/
+cd backend
+memory add -t decision -c "Use PostgreSQL for the main database"
+# → Stored in ~/projects/my-app/.ai-memory/
 
-cd ../nextjs-admin
+cd ../frontend
 memory list
 # → Shows the same memory
 ```
@@ -96,7 +96,7 @@ memory list
 If you want isolated memory for a specific project, initialize it in that project's directory:
 
 ```bash
-cd ~/projects/client-app/wordpress-plugin
+cd ~/projects/my-app/backend
 memory init
 # → Creates isolated memory for this project only
 ```

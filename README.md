@@ -50,21 +50,21 @@ PAMH works like `.git` - it searches for `.ai-memory/` by walking up the directo
 ### Shared Memory (Monorepo)
 
 ```
-~/projects/client-app/
+~/projects/my-app/
   ├── .ai-memory/              ← Initialize here
-  ├── wordpress-plugin/        ← Uses parent memory
-  └── nextjs-admin/            ← Uses parent memory
+  ├── backend/                 ← Uses parent memory
+  └── frontend/                ← Uses parent memory
 ```
 
 ```bash
-cd ~/projects/client-app
+cd ~/projects/my-app
 memory init
 
-cd wordpress-plugin
-memory add -t decision -c "Use TypeScript"
-# → Stored in ~/projects/client-app/.ai-memory/
+cd backend
+memory add -t decision -c "Use PostgreSQL for the main database"
+# → Stored in ~/projects/my-app/.ai-memory/
 
-cd ../nextjs-admin
+cd ../frontend
 memory list
 # → Shows the same memory
 ```
@@ -72,15 +72,15 @@ memory list
 ### Isolated Memory
 
 ```
-~/projects/client-app/
-  ├── wordpress-plugin/
+~/projects/my-app/
+  ├── backend/
   │   └── .ai-memory/          ← Initialize here for isolated memory
-  └── nextjs-admin/
+  └── frontend/
       └── .ai-memory/          ← Initialize here for isolated memory
 ```
 
 ```bash
-cd ~/projects/client-app/wordpress-plugin
+cd ~/projects/my-app/backend
 memory init
 # → Creates isolated memory for this project only
 ```

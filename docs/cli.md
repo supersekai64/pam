@@ -39,7 +39,7 @@ Show current memory status, including which memory directory is being used and m
 
 ```bash
 memory status
-# Using memory: ~/projects/client-app/.ai-memory/
+# Using memory: ~/projects/my-app/.ai-memory/
 # Global memory: ~/ai-memory/
 # Memories: 12 active, 3 proposed, 1 archived, 2 deleted
 ```
