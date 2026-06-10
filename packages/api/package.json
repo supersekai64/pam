@@ -1,0 +1,26 @@
+{
+  "name": "@pamh/api",
+  "version": "0.1.0",
+  "description": "PAMH API - Local HTTP API for PAMH clients",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "files": [
+    "dist"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@pamh/core": "workspace:*",
+    "@pamh/ui": "workspace:*"
+  }
+}

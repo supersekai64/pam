@@ -1,0 +1,20 @@
+export { createPamhMcpServer, startPamhMcpServer } from './server.js'
+export {
+  addMemory,
+  compileMemoryContext,
+  editMemory,
+  getMemory,
+  linkProject,
+  listProjects,
+  removeMemory,
+  resolveMemoryPath,
+  searchMemory,
+  type AddMemoryInput,
+  type CompileContextInput,
+  type DeleteMemoryInput,
+  type EditMemoryInput,
+  type GetMemoryInput,
+  type ListProjectsInput,
+  type McpToolContext,
+  type SearchMemoryInput,
+} from './tools.js'

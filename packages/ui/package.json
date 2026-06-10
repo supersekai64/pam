@@ -1,0 +1,25 @@
+{
+  "name": "@pamh/ui",
+  "version": "0.1.0",
+  "description": "PAMH UI - Local web interface for PAMH",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.json",
+    "dev": "vite --host 127.0.0.1"
+  },
+  "files": [
+    "dist"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "^7.2.7"
+  }
+}

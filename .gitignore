@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.db
+.env
+.env.*
+*.pem
+*.key
+secrets/
+*.log
+.DS_Store
+coverage/
+.turbo/
+SPEC.md
+PLAN.md

@@ -1,0 +1,49 @@
+#!/usr/bin/env node
+
+import { Command } from 'commander'
+import { VERSION } from '@pamh/core'
+import { registerInitCommand } from './commands/init.js'
+import { registerAddCommand } from './commands/add.js'
+import { registerListCommand } from './commands/list.js'
+import { registerShowCommand } from './commands/show.js'
+import { registerEditCommand } from './commands/edit.js'
+import { registerDeleteCommand } from './commands/delete.js'
+import { registerArchiveCommand } from './commands/archive.js'
+import { registerIndexCommand } from './commands/index-cmd.js'
+import { registerSearchCommand } from './commands/search.js'
+import { registerDoctorCommand } from './commands/doctor.js'
+import { registerRedactCommand } from './commands/redact.js'
+import { registerRestoreCommand } from './commands/restore.js'
+import { registerAuditCommand } from './commands/audit.js'
+import { registerExportCommand } from './commands/export-cmd.js'
+import { registerImportCommand } from './commands/import-cmd.js'
+import { registerContextCommand } from './commands/context.js'
+import { registerSemanticCommand } from './commands/semantic.js'
+import { registerServerCommand } from './commands/server.js'
+import { registerUiCommand } from './commands/ui.js'
+
+const program = new Command()
+
+program.name('memory').description('Portable AI Memory Hub CLI').version(VERSION)
+
+registerInitCommand(program)
+registerAddCommand(program)
+registerListCommand(program)
+registerShowCommand(program)
+registerEditCommand(program)
+registerDeleteCommand(program)
+registerArchiveCommand(program)
+registerIndexCommand(program)
+registerSearchCommand(program)
+registerDoctorCommand(program)
+registerRedactCommand(program)
+registerRestoreCommand(program)
+registerAuditCommand(program)
+registerExportCommand(program)
+registerImportCommand(program)
+registerContextCommand(program)
+registerSemanticCommand(program)
+registerServerCommand(program)
+registerUiCommand(program)
+
+program.parse()

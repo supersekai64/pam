@@ -1,0 +1,25 @@
+{
+  "name": "@pamh/cli",
+  "version": "0.1.0",
+  "description": "PAMH CLI - Command line interface for PAMH",
+  "type": "module",
+  "bin": {
+    "memory": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "files": [
+    "dist"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@pamh/api": "workspace:*",
+    "@pamh/core": "workspace:*",
+    "@pamh/mcp": "workspace:^",
+    "commander": "^15.0.0"
+  }
+}

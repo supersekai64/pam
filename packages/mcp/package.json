@@ -1,0 +1,21 @@
+{
+  "name": "@pamh/mcp",
+  "version": "0.1.0",
+  "description": "PAMH MCP - Model Context Protocol server for PAMH",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "files": [
+    "dist"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@pamh/core": "workspace:*",
+    "zod": "^4.4.3"
+  }
+}
