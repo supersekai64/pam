@@ -4,6 +4,31 @@ Open-source platform for persistent, portable, and model-independent AI memory.
 
 PAMH lets you maintain user-controlled memory that works across multiple LLMs, IDEs, agents, and tools.
 
+## Why PAMH?
+
+AI assistants are becoming part of everyday development workflows, but their memory is usually fragmented, vendor-specific, and hard to control. Context gets lost between tools, projects, sessions, and models. Important decisions have to be repeated, agent behavior is difficult to audit, and switching tools often means starting from scratch.
+
+PAMH was built to make AI memory portable, inspectable, and user-owned.
+
+There are already strong projects exploring this space, such as [`ai-memory`](https://github.com/akitaonrails/ai-memory), which focuses on long-term memory and handoff for coding agents. PAMH exists for a slightly different reason: we wanted a lightweight, npm-installable memory layer that can be adopted quickly, works locally by default, keeps the user in control of what becomes permanent memory, and exposes the same memory through CLI, MCP, API, and UI surfaces.
+
+In other words, PAMH is not trying to replace every AI memory system. It focuses on being a simple, portable memory hub that can sit beside your existing tools and give them a shared source of truth.
+
+Instead of storing knowledge inside a single chat product or IDE, PAMH keeps memory in your project or home directory, using local files as the source of truth. Any compatible agent can read from the same memory, propose updates, and reuse context across sessions.
+
+Key advantages:
+
+- **Portable across tools**: use the same memory with Cursor, Claude Code, Copilot-compatible MCP clients, local agents, or your own tooling.
+- **Model-independent**: memory is not tied to one LLM provider, account, or proprietary workspace.
+- **User-controlled**: memories are local, reviewable, editable, exportable, and can be approved or rejected before becoming permanent.
+- **Simple to install**: install once with `npm install -g pamh-cli`, then use the `memory` command everywhere.
+- **Project-aware**: PAMH works like `.git`, discovering the nearest `.ai-memory/` directory so monorepos and nested projects can share context naturally.
+- **Agent-friendly**: the built-in MCP server lets AI tools search, propose, and retrieve memory without custom integration work.
+- **Multiple access paths**: the same memory can be used through the CLI, MCP server, local HTTP API, or web UI.
+- **Auditable over time**: decisions, preferences, facts, handoffs, and superseded memories can be tracked instead of disappearing into chat history.
+
+PAMH is not another chat interface. It is a memory layer for AI-assisted work.
+
 ## Installation
 
 **From npm** (recommended for users):
