@@ -9,16 +9,6 @@ export function registerInitCommand(program: Command) {
   const init = program.command('init').description('Initialize memory storage')
 
   init
-    .command('global')
-    .description('Initialize global memory in ~/ai-memory')
-    .action(async () => {
-      const path = await initGlobalMemory()
-      console.log(`Global memory initialized at: ${path}`)
-    })
-
-  program
-    .command('init')
-    .description('Initialize memory storage in current directory')
     .option('--no-integrations', 'Skip agent and IDE integration files')
     .action(async (options: InitProjectOptions) => {
       const cwd = process.cwd()
@@ -33,5 +23,13 @@ export function registerInitCommand(program: Command) {
           console.log(`  ${result.status}: ${result.path}${suffix}`)
         }
       }
+    })
+
+  init
+    .command('global')
+    .description('Initialize global memory in ~/ai-memory')
+    .action(async () => {
+      const path = await initGlobalMemory()
+      console.log(`Global memory initialized at: ${path}`)
     })
 }

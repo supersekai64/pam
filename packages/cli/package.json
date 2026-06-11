@@ -1,5 +1,5 @@
 {
-  "name": "pamh",
+  "name": "pamh-cli",
   "version": "0.1.0",
   "description": "PAMH CLI - Command line interface for PAMH",
   "type": "module",
@@ -46,9 +46,10 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "pamh-api": "workspace:*",
-    "pamh-core": "workspace:*",
-    "pamh-mcp": "workspace:^",
-    "commander": "^15.0.0"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "commander": "^15.0.0",
+    "pamh-api": "0.1.1",
+    "pamh-core": "0.1.0",
+    "zod": "^4.4.3"
   }
 }

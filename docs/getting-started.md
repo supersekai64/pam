@@ -10,7 +10,7 @@
 **From npm** (recommended for users):
 
 ```bash
-npm install -g pamh
+npm install -g pamh-cli
 ```
 
 This installs the `memory` command globally.

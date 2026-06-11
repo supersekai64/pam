@@ -1,5 +1,5 @@
 {
-  "name": "pamh-mcp",
+  "name": "pamh-protocol",
   "version": "0.1.0",
   "description": "PAMH MCP - Model Context Protocol server for PAMH",
   "type": "module",
@@ -17,7 +17,8 @@
     "ai",
     "memory",
     "llm",
-    "mcp"
+    "mcp",
+    "server"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

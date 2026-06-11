@@ -9,7 +9,7 @@ PAMH lets you maintain user-controlled memory that works across multiple LLMs, I
 **From npm** (recommended for users):
 
 ```bash
-npm install -g pamh
+npm install -g pamh-cli
 ```
 
 This installs the `memory` command globally.

@@ -5,7 +5,7 @@ CLI for persistent, portable, model-independent AI memory.
 ## Installation
 
 ```bash
-npm install -g pamh
+npm install -g pamh-cli
 ```
 
 This installs the `memory` command.

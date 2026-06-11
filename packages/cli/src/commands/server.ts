@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { startPamhMcpServer } from 'pamh-mcp'
+import { startPamhMcpServer } from '../mcp/server.js'
 
 export function registerServerCommand(program: Command) {
   const server = program.command('server').description('Run PAMH servers')

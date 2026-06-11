@@ -35,26 +35,29 @@ importers:
   packages/api:
     dependencies:
       pamh-core:
-        specifier: workspace:*
+        specifier: 0.1.0
         version: link:../core
       pamh-ui:
-        specifier: workspace:*
+        specifier: 0.1.0
         version: link:../ui
 
   packages/cli:
     dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
       commander:
         specifier: ^15.0.0
         version: 15.0.0
       pamh-api:
-        specifier: workspace:*
+        specifier: 0.1.1
         version: link:../api
       pamh-core:
-        specifier: workspace:*
+        specifier: 0.1.0
         version: link:../core
-      pamh-mcp:
-        specifier: workspace:^
-        version: link:../mcp
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   packages/core:
     dependencies:
