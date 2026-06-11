@@ -10,7 +10,7 @@ AI assistants are becoming part of everyday development workflows, but their mem
 
 PAMH was built to make AI memory portable, inspectable, and user-owned.
 
-There are already strong projects exploring this space, such as [`ai-memory`](https://github.com/akitaonrails/ai-memory), which focuses on long-term memory and handoff for coding agents. PAMH exists for a slightly different reason: we wanted a lightweight, npm-installable memory layer that can be adopted quickly, works locally by default, keeps the user in control of what becomes permanent memory, and exposes the same memory through CLI, MCP, API, and UI surfaces.
+There are already strong projects exploring this space, which focuses on long-term memory and handoff for coding agents. PAMH exists for a slightly different reason: we wanted a lightweight, npm-installable memory layer that can be adopted quickly, works locally by default, keeps the user in control of what becomes permanent memory, and exposes the same memory through CLI, MCP, API, and UI surfaces.
 
 In other words, PAMH is not trying to replace every AI memory system. It focuses on being a simple, portable memory hub that can sit beside your existing tools and give them a shared source of truth.
 
