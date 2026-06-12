@@ -1,6 +1,6 @@
 {
   "name": "pamh-cli",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "PAMH CLI - Command line interface for PAMH",
   "type": "module",
   "license": "MIT",
@@ -48,8 +48,8 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "commander": "^15.0.0",
-    "pamh-api": "workspace:^",
-    "pamh-core": "workspace:^",
+    "pamh-api": "^0.1.4",
+    "pamh-core": "^0.1.3",
     "zod": "^4.4.3"
   }
 }
