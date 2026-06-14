@@ -1,14 +1,13 @@
 import { Command } from 'commander'
-import { SemanticIndex, readMemory, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
+import { SemanticIndex, readMemory, getProjectMemoryPath } from 'pamh-core'
 
 export function registerSemanticCommand(program: Command) {
   program
     .command('semantic-search <query>')
     .description('Search memories using semantic similarity')
     .option('-l, --limit <number>', 'Maximum number of results', '10')
-    .option('--project', 'Use project memory instead of global')
     .action(async (query: string, options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+      const basePath = getProjectMemoryPath(process.cwd())
       const limit = parseInt(options.limit, 10)
 
       console.log(`Searching semantically for: "${query}"`)

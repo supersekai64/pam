@@ -40,7 +40,7 @@ In manual mode, memories are created only when you explicitly call `memory add` 
 **Example:**
 
 ```bash
-memory add --project -t decision -s project -c "Use PostgreSQL for the main database"
+memory add -t decision -c "Use PostgreSQL for the main database"
 ```
 
 ## Assisted Mode (Default)
@@ -81,7 +81,7 @@ In the UI, proposed memories show with "Approve" and "Reject" buttons instead of
 Tools that support lifecycle hooks can call:
 
 ```bash
-memory hook record user-prompt --project --agent <agent>
+memory hook record user-prompt --agent <agent>
 ```
 
 If the tool sends prompt data to stdin or `--data`, PAMH records the raw hook
@@ -115,13 +115,10 @@ mode: auto
 rules:
   - after: task_completion
     type: session
-    scope: project
   - after: decision_made
     type: decision
-    scope: project
 exclude:
-  - type: knowledge
-    scope: temporary
+  - type: session
 ```
 
 **Warning:** Auto mode can create noise if not configured carefully. Start with assisted mode and switch to auto only after validating the agent's suggestions.

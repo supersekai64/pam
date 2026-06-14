@@ -4,7 +4,6 @@ import {
   acceptHandoff,
   getOpenHandoff,
   listHandoffs,
-  getGlobalMemoryPath,
   getProjectMemoryPath,
 } from 'pamh-core'
 
@@ -18,7 +17,6 @@ export function registerHandoffCommand(program: Command) {
     .option('-a, --agent <agent>', 'Agent name (e.g. claude-code, codex)')
     .option('-q, --questions <questions>', 'Open questions (comma-separated)')
     .option('-n, --next-steps <steps>', 'Next steps (comma-separated)')
-    .option('--project', 'Use project memory instead of global')
     .action(async (options) => {
       if (!options.summary) {
         console.error('Error: --summary is required')
@@ -26,7 +24,7 @@ export function registerHandoffCommand(program: Command) {
       }
 
       const projectPath = getProjectMemoryPath(process.cwd())
-      const basePath = options.project ? projectPath : getGlobalMemoryPath()
+      const basePath = projectPath
 
       const openQuestions = options.questions
         ? options.questions.split(',').map((s: string) => s.trim())
@@ -60,10 +58,9 @@ export function registerHandoffCommand(program: Command) {
     .command('accept')
     .description('Accept an open handoff')
     .option('-a, --agent <agent>', 'Agent name (e.g. claude-code, codex)')
-    .option('--project', 'Use project memory instead of global')
     .action(async (options) => {
       const projectPath = getProjectMemoryPath(process.cwd())
-      const basePath = options.project ? projectPath : getGlobalMemoryPath()
+      const basePath = projectPath
 
       const openHandoff = await getOpenHandoff(basePath, projectPath)
       if (!openHandoff) {
@@ -93,10 +90,9 @@ export function registerHandoffCommand(program: Command) {
     .command('list')
     .description('List all handoffs')
     .option('--status <status>', 'Filter by status (open, accepted, expired)')
-    .option('--project', 'Use project memory instead of global')
     .action(async (options) => {
       const projectPath = getProjectMemoryPath(process.cwd())
-      const basePath = options.project ? projectPath : getGlobalMemoryPath()
+      const basePath = projectPath
 
       const handoffs = await listHandoffs(basePath, options.status, projectPath)
 

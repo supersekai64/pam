@@ -1,13 +1,12 @@
 import { Command } from 'commander'
-import { rejectMemory, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
+import { rejectMemory, getProjectMemoryPath } from 'pamh-core'
 
 export function registerRejectCommand(program: Command) {
   program
     .command('reject <id>')
     .description('Reject a proposed memory')
-    .option('--project', 'Use project memory instead of global')
-    .action(async (id, options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+    .action(async (id) => {
+      const basePath = getProjectMemoryPath(process.cwd())
 
       const rejected = await rejectMemory(basePath, id)
 

@@ -24,8 +24,6 @@ import {
   type McpToolContext,
 } from './tools.js'
 
-const scopeSchema = z.enum(['global', 'project']).optional()
-
 function jsonResult(value: unknown) {
   return {
     content: [
@@ -37,23 +35,48 @@ function jsonResult(value: unknown) {
   }
 }
 
+const PAMH_SERVER_INSTRUCTIONS = `PAMH is the persistent memory layer for this project. Use it on EVERY task — not just when asked.
+
+MANDATORY workflow:
+1. At the start of every task, call \`search_memory\` (and \`compile_context\` if useful) to retrieve existing rules, preferences, decisions, and recent sessions.
+2. Whenever the user expresses a durable preference, rule, decision, correction, or mistake — capture it IMMEDIATELY with \`add_memory\` (do not defer to end of turn). Triggers include phrases like "always", "never", "from now on", "I want X everywhere", "this should have been remembered".
+3. Before your final response, call \`memory_checkpoint\` with a summary plus relevant decisions/preferences/rules/mistakes/tasks.
+
+Capture is in assisted mode: memories are created as \`proposed\` and require user approval, so capturing is cheap and reversible — when in doubt, capture.
+
+Memory types: \`rule\` (always/never), \`preference\` (style/UX choices), \`decision\` (technical choices), \`knowledge\` (reusable facts), \`mistake\` (lessons), \`session\` (work summary), \`task\` (follow-up). PAMH is project-only; clients do not provide a scope. Always write memory content in English.
+
+Never store secrets, tokens, passwords, or transient logs.`
+
 export function createPamhMcpServer(context: McpToolContext) {
-  const server = new McpServer({
-    name: 'pamh',
-    version: '0.1.0',
-  })
+  const server = new McpServer(
+    {
+      name: 'pamh',
+      version: '0.1.0',
+    },
+    {
+      instructions: PAMH_SERVER_INSTRUCTIONS,
+    }
+  )
 
   server.registerTool(
     'search_memory',
     {
       title: 'Search Memory',
-      description: 'Search PAMH memories by text, type, tag, and scope.',
+      description:
+        'Search project PAMH memories by text, type, and tag. CALL THIS AT THE START OF EVERY TASK to retrieve existing rules, preferences, and decisions before acting.',
       inputSchema: {
         query: z.string().optional(),
-        scope: scopeSchema,
         type: z.string().optional(),
         tag: z.string().optional(),
         limit: z.number().int().positive().optional(),
+      },
+      annotations: {
+        title: 'Search Memory',
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
       },
     },
     async (input) => jsonResult(await searchMemory(input, context))
@@ -66,7 +89,6 @@ export function createPamhMcpServer(context: McpToolContext) {
       description: 'Get a PAMH memory by ID.',
       inputSchema: {
         id: z.string(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult(await getMemory(input, context))
@@ -76,13 +98,20 @@ export function createPamhMcpServer(context: McpToolContext) {
     'add_memory',
     {
       title: 'Add Memory',
-      description: 'Add a new PAMH memory.',
+      description:
+        'Add a new PAMH memory. CALL THIS IMMEDIATELY whenever the user expresses a durable preference, rule ("always/never"), decision, correction, or reusable fact — do not defer to end of turn. In assisted mode the memory is created as `proposed` (cheap and reversible), so when in doubt, capture.',
       inputSchema: {
         content: z.string(),
         type: z.string(),
-        scope: z.enum(['global', 'project']).default('project'),
         tags: z.array(z.string()).optional(),
         salience: z.number().min(0).max(1).optional(),
+      },
+      annotations: {
+        title: 'Add Memory',
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
       },
     },
     async (input) => jsonResult(await addMemory(input, context))
@@ -93,7 +122,7 @@ export function createPamhMcpServer(context: McpToolContext) {
     {
       title: 'Memory Checkpoint',
       description:
-        'Submit a structured checkpoint of durable session learnings. PAMH creates proposed or active memories based on capture mode.',
+        'Submit a structured checkpoint of durable session learnings. CALL THIS BEFORE YOUR FINAL RESPONSE whenever meaningful project work happened, including a `summary` and any relevant `decisions` / `facts` / `preferences` / `mistakes` / `tasks`. PAMH creates proposed or active memories based on capture mode.',
       inputSchema: {
         summary: z.string().optional(),
         decisions: z.array(z.string()).optional(),
@@ -104,7 +133,13 @@ export function createPamhMcpServer(context: McpToolContext) {
         agent: z.string().optional(),
         model: z.string().optional(),
         session_id: z.string().optional(),
-        scope: z.enum(['global', 'project']).default('project'),
+      },
+      annotations: {
+        title: 'Memory Checkpoint',
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
       },
     },
     async (input) => jsonResult(await memoryCheckpoint(input, context))
@@ -119,7 +154,6 @@ export function createPamhMcpServer(context: McpToolContext) {
         id: z.string(),
         content: z.string().optional(),
         type: z.string().optional(),
-        scope: scopeSchema,
         tags: z.array(z.string()).optional(),
       },
     },
@@ -133,7 +167,6 @@ export function createPamhMcpServer(context: McpToolContext) {
       description: 'Logically delete a PAMH memory.',
       inputSchema: {
         id: z.string(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult({ deleted: await removeMemory(input, context) })
@@ -155,7 +188,7 @@ export function createPamhMcpServer(context: McpToolContext) {
     'compile_context',
     {
       title: 'Compile Context',
-      description: 'Compile context from global, project, linked, and search memories.',
+      description: 'Compile context from project and search memories.',
       inputSchema: {
         query: z.string().optional(),
         maxTokens: z.number().int().positive().optional(),
@@ -170,9 +203,7 @@ export function createPamhMcpServer(context: McpToolContext) {
       title: 'Recommend Memory Maintenance',
       description:
         'Preview reviewable memory maintenance recommendations with evidence. Does not mutate memories.',
-      inputSchema: {
-        scope: scopeSchema,
-      },
+      inputSchema: {},
     },
     async (input) => jsonResult(await recommendMemoryMaintenance(input, context))
   )
@@ -183,9 +214,7 @@ export function createPamhMcpServer(context: McpToolContext) {
       title: 'Preview Memory Distillation',
       description:
         'Preview deterministic distillation proposals. Does not create distilled memories.',
-      inputSchema: {
-        scope: scopeSchema,
-      },
+      inputSchema: {},
     },
     async (input) => jsonResult(await previewMemoryDistillation(input, context))
   )
@@ -196,9 +225,7 @@ export function createPamhMcpServer(context: McpToolContext) {
       title: 'Preview Knowledge Graph',
       description:
         'Preview evidence-backed Knowledge Graph entities and typed relations. Relations remain proposed.',
-      inputSchema: {
-        scope: scopeSchema,
-      },
+      inputSchema: {},
     },
     async (input) => jsonResult(await previewKnowledgeGraph(input, context))
   )
@@ -211,7 +238,6 @@ export function createPamhMcpServer(context: McpToolContext) {
         'Accept and apply one previously generated memory recommendation by ID. Review evidence before calling.',
       inputSchema: {
         id: z.string(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult(await applyMemoryRecommendation(input, context))
@@ -228,7 +254,6 @@ export function createPamhMcpServer(context: McpToolContext) {
         old_id: z.string(),
         content: z.string(),
         type: z.string(),
-        scope: scopeSchema,
         tags: z.array(z.string()).optional(),
         salience: z.number().min(0).max(1).optional(),
       },
@@ -244,7 +269,6 @@ export function createPamhMcpServer(context: McpToolContext) {
         'Get the full supersession chain for a memory (all versions from oldest to newest).',
       inputSchema: {
         memory_id: z.string(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult(await getSupersessionChainTool(input, context))
@@ -257,7 +281,6 @@ export function createPamhMcpServer(context: McpToolContext) {
       description: 'Get the latest version of a memory (follows superseded_by chain).',
       inputSchema: {
         memory_id: z.string(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult(await getLatestVersionTool(input, context))
@@ -275,7 +298,6 @@ export function createPamhMcpServer(context: McpToolContext) {
         agent_from: z.string().optional(),
         open_questions: z.array(z.string()).optional(),
         next_steps: z.array(z.string()).optional(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult(await handoffBeginTool(input, context))
@@ -290,7 +312,6 @@ export function createPamhMcpServer(context: McpToolContext) {
       inputSchema: {
         handoff_id: z.string().optional(),
         agent_to: z.string().optional(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult(await handoffAcceptTool(input, context))
@@ -310,7 +331,6 @@ export function createPamhMcpServer(context: McpToolContext) {
         cold_threshold: z.number().min(0).max(1).optional(),
         hard_delete_after_days: z.number().int().min(0).optional(),
         dry_run: z.boolean().optional(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult(await forgetSweepTool(input, context))
@@ -338,7 +358,6 @@ export function createPamhMcpServer(context: McpToolContext) {
         agent: z.string().optional(),
         session_id: z.string().optional(),
         data: z.record(z.string(), z.unknown()).optional(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult(await recordHookEventTool(input, context))

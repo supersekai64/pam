@@ -7,7 +7,6 @@ export const MEMORY_TYPES = [
   'session',
   'task',
   'client',
-  'project',
   'pattern',
 ] as const
 
@@ -17,19 +16,28 @@ export function isMemoryType(value: unknown): value is MemoryType {
   return typeof value === 'string' && MEMORY_TYPES.includes(value as MemoryType)
 }
 
-export const MEMORY_SCOPES = [
-  'global',
-  'project',
-  'client',
-  'stack',
-  'temporary',
-  'archived',
-] as const
+export function normalizeStoredMemoryType(value: unknown): MemoryType {
+  if (isMemoryType(value)) {
+    return value
+  }
+
+  if (value === undefined || value === null || value === '' || value === 'project') {
+    return 'knowledge'
+  }
+
+  throw new Error(`Invalid memory type: ${String(value)}`)
+}
+
+export const MEMORY_SCOPES = ['project'] as const
 
 export type MemoryScope = (typeof MEMORY_SCOPES)[number]
 
 export function isMemoryScope(value: unknown): value is MemoryScope {
   return typeof value === 'string' && MEMORY_SCOPES.includes(value as MemoryScope)
+}
+
+export function normalizeStoredMemoryScope(value: unknown): MemoryScope {
+  return isMemoryScope(value) ? value : 'project'
 }
 
 export const MEMORY_STATUSES = ['active', 'deleted', 'archived', 'proposed', 'noise'] as const
@@ -48,6 +56,10 @@ export function assertMemoryType(value: unknown): MemoryType {
 }
 
 export function assertMemoryScope(value: unknown): MemoryScope {
+  if (value === undefined || value === null || value === '') {
+    return 'project'
+  }
+
   if (!isMemoryScope(value)) {
     throw new Error(`Invalid memory scope: ${String(value)}`)
   }
@@ -121,6 +133,7 @@ export interface UpdateMemoryInput {
   scope?: MemoryScope
   status?: MemoryStatus
   source_ids?: string[]
+  superseded_by?: string
 }
 
 // Handoff types (cross-agent context transfer)

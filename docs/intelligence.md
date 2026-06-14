@@ -25,21 +25,21 @@ Important boundaries:
 Generate reviewable maintenance recommendations:
 
 ```bash
-memory intelligence recommend --project
+memory intelligence recommend
 ```
 
 List stored recommendations:
 
 ```bash
-memory intelligence list --project
+memory intelligence list
 ```
 
 Apply, reject, or defer one recommendation:
 
 ```bash
-memory intelligence apply <id> --project
-memory intelligence reject <id> --project
-memory intelligence defer <id> --project
+memory intelligence apply <id>
+memory intelligence reject <id>
+memory intelligence defer <id>
 ```
 
 Recommendation types include:
@@ -60,7 +60,7 @@ new evidence.
 Preview grouped cleanup recommendations:
 
 ```bash
-memory intelligence cleanup --project
+memory intelligence cleanup
 ```
 
 Supported actions include:
@@ -79,13 +79,13 @@ use normal memory status changes.
 Preview repeated concepts that can become synthetic memories:
 
 ```bash
-memory intelligence distill --project
+memory intelligence distill
 ```
 
 Create proposed distilled memories:
 
 ```bash
-memory intelligence distill --project --apply
+memory intelligence distill --apply
 ```
 
 Distilled memories use `source: distillation`, default to `status: proposed`,
@@ -96,7 +96,7 @@ and preserve all evidence memory IDs in `source_ids`.
 Preview explicit entities and typed relations:
 
 ```bash
-memory intelligence graph --project
+memory intelligence graph
 ```
 
 Entities include concepts, decisions, rules, files, projects, stacks, APIs,
@@ -124,7 +124,7 @@ relations remain reviewable previews rather than permanent mutations.
 Seed the shared intelligence evaluation dataset:
 
 ```bash
-memory intelligence seed-eval --project
+memory intelligence seed-eval
 ```
 
 The dataset creates 270 memories covering active memories, near duplicates,

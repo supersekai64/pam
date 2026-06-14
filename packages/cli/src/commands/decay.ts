@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { forgetSweep, getGlobalMemoryPath, getProjectMemoryPath, type DecayConfig } from 'pamh-core'
+import { forgetSweep, getProjectMemoryPath, type DecayConfig } from 'pamh-core'
 
 export function registerDecayCommand(program: Command) {
   const decay = program.command('decay').description('Memory decay management')
@@ -13,9 +13,8 @@ export function registerDecayCommand(program: Command) {
     .option('--threshold <threshold>', 'Cold threshold', '0.20')
     .option('--hard-delete-days <days>', 'Days before hard-delete', '180')
     .option('--dry-run', 'Preview without making changes')
-    .option('--project', 'Use project memory instead of global')
     .action(async (options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+      const basePath = getProjectMemoryPath(process.cwd())
 
       let config: DecayConfig
       try {

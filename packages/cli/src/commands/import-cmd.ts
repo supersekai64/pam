@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { importMemories, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
+import { importMemories, getProjectMemoryPath } from 'pamh-core'
 import { resolve } from 'node:path'
 
 export function registerImportCommand(program: Command) {
@@ -7,9 +7,8 @@ export function registerImportCommand(program: Command) {
     .command('import <input>')
     .description('Import memories from a file')
     .option('-f, --format <format>', 'Import format (zip, json, markdown)', 'json')
-    .option('--project', 'Use project memory instead of global')
     .action(async (input, options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+      const basePath = getProjectMemoryPath(process.cwd())
       const inputPath = resolve(input)
 
       console.log(`Importing memories from ${inputPath}...`)

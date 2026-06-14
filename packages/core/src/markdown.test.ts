@@ -23,7 +23,7 @@ This is the memory content.`
 
     expect(memory.metadata.id).toBe('mem_abc123')
     expect(memory.metadata.type).toBe('decision')
-    expect(memory.metadata.scope).toBe('global')
+    expect(memory.metadata.scope).toBe('project')
     expect(memory.metadata.status).toBe('active')
     expect(memory.metadata.tags).toEqual(['architecture', 'backend'])
     expect(memory.metadata.source).toBe('manual')
@@ -73,6 +73,34 @@ Content.`
     expect(memory.metadata.access_count).toBeUndefined()
   })
 
+  it('should normalize legacy scopes to project when reading markdown', () => {
+    const raw = `---
+id: mem_legacy_scope
+type: knowledge
+scope: temporary
+---
+
+Legacy scope content.`
+
+    const memory = parseMarkdown(raw)
+
+    expect(memory.metadata.scope).toBe('project')
+  })
+
+  it('should normalize legacy project type to knowledge when reading markdown', () => {
+    const raw = `---
+id: mem_legacy_type
+type: project
+scope: project
+---
+
+Legacy project type content.`
+
+    const memory = parseMarkdown(raw)
+
+    expect(memory.metadata.type).toBe('knowledge')
+  })
+
   it('should use defaults for missing fields', () => {
     const raw = `---
 id: mem_xyz
@@ -84,7 +112,7 @@ Simple content.`
 
     expect(memory.metadata.id).toBe('mem_xyz')
     expect(memory.metadata.type).toBe('knowledge')
-    expect(memory.metadata.scope).toBe('global')
+    expect(memory.metadata.scope).toBe('project')
     expect(memory.metadata.status).toBe('active')
     expect(memory.metadata.tags).toEqual([])
     expect(memory.metadata.source).toBe('manual')
@@ -121,7 +149,7 @@ describe('serializeMarkdown', () => {
       metadata: {
         id: 'mem_round',
         type: 'decision',
-        scope: 'global',
+        scope: 'project',
         status: 'active',
         created_at: '2026-01-01T00:00:00.000Z',
         updated_at: '2026-01-01T00:00:00.000Z',

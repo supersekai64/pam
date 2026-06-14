@@ -17,16 +17,14 @@ import {
 describe('MCP tools', () => {
   let tempDir: string
   let projectDir: string
-  let globalMemoryPath: string
   let projectMemoryPath: string
   let context: McpToolContext
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'pamh-mcp-test-'))
     projectDir = join(tempDir, 'project')
-    globalMemoryPath = join(tempDir, 'global-memory')
     projectMemoryPath = await initProjectMemory(projectDir)
-    context = { cwd: projectDir, globalMemoryPath, projectMemoryPath }
+    context = { cwd: projectDir, projectMemoryPath }
   })
 
   afterEach(async () => {
@@ -38,14 +36,13 @@ describe('MCP tools', () => {
       {
         content: 'Use PostgreSQL for relational data',
         type: 'decision',
-        scope: 'project',
         tags: ['database'],
         status: 'active',
       },
       context
     )
 
-    const loaded = await getMemory({ id: created.metadata.id, scope: 'project' }, context)
+    const loaded = await getMemory({ id: created.metadata.id }, context)
     expect(loaded?.content).toBe('Use PostgreSQL for relational data')
     expect(loaded?.metadata.access_count).toBe(1)
 
@@ -53,21 +50,20 @@ describe('MCP tools', () => {
       {
         id: created.metadata.id,
         content: 'Use SQLite for the local memory index',
-        scope: 'project',
         tags: ['sqlite'],
       },
       context
     )
     expect(edited?.content).toBe('Use SQLite for the local memory index')
 
-    const results = await searchMemory({ query: 'SQLite', scope: 'project' }, context)
+    const results = await searchMemory({ query: 'SQLite' }, context)
     expect(results).toHaveLength(1)
     expect(results[0].id).toBe(created.metadata.id)
 
-    const deleted = await removeMemory({ id: created.metadata.id, scope: 'project' }, context)
+    const deleted = await removeMemory({ id: created.metadata.id }, context)
     expect(deleted).toBe(true)
 
-    const afterDelete = await getMemory({ id: created.metadata.id, scope: 'project' }, context)
+    const afterDelete = await getMemory({ id: created.metadata.id }, context)
     expect(afterDelete?.metadata.status).toBe('deleted')
   })
 
@@ -76,7 +72,6 @@ describe('MCP tools', () => {
       {
         content: 'Project architecture uses TypeScript packages',
         type: 'knowledge',
-        scope: 'project',
         status: 'active',
       },
       context
@@ -95,7 +90,6 @@ describe('MCP tools', () => {
         facts: ['PAMH exposes memory_checkpoint through MCP.'],
         agent: 'codex',
         model: 'gpt-5',
-        scope: 'project',
       },
       context
     )
@@ -120,7 +114,6 @@ describe('MCP tools', () => {
         summary: 'This should stay an observation only.',
         decisions: ['Do not create memory in manual mode.'],
         agent: 'codex',
-        scope: 'project',
       },
       context
     )

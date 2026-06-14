@@ -1,13 +1,7 @@
 import { Command } from 'commander'
-import {
-  getGlobalMemoryPath,
-  getMemoryDebugStatus,
-  getProjectMemoryPath,
-  setMemoryDebugMode,
-} from 'pamh-core'
+import { getMemoryDebugStatus, getProjectMemoryPath, setMemoryDebugMode } from 'pamh-core'
 
 interface DebugOptions {
-  global?: boolean
   agent?: string
   model?: string
   session?: string
@@ -19,7 +13,6 @@ export function registerDebugCommand(program: Command) {
   debug
     .command('on')
     .description('Enable memory debug logging')
-    .option('--global', 'Use global memory instead of project memory')
     .option('--agent <agent>', 'Agent name to record, e.g. codex, claude-code')
     .option('--model <model>', 'Model name to record, e.g. gpt-5, claude-sonnet')
     .option('--session <session>', 'Session id to record')
@@ -38,7 +31,6 @@ export function registerDebugCommand(program: Command) {
   debug
     .command('off')
     .description('Disable memory debug logging')
-    .option('--global', 'Use global memory instead of project memory')
     .action(async (options: DebugOptions) => {
       const basePath = resolveBasePath(options)
       const status = await setMemoryDebugMode(basePath, false)
@@ -50,7 +42,6 @@ export function registerDebugCommand(program: Command) {
   debug
     .command('status')
     .description('Show memory debug logging status')
-    .option('--global', 'Use global memory instead of project memory')
     .action(async (options: DebugOptions) => {
       const basePath = resolveBasePath(options)
       const status = await getMemoryDebugStatus(basePath)
@@ -66,7 +57,6 @@ export function registerDebugCommand(program: Command) {
   debug
     .command('path')
     .description('Print the memory debug log path')
-    .option('--global', 'Use global memory instead of project memory')
     .action(async (options: DebugOptions) => {
       const basePath = resolveBasePath(options)
       const status = await getMemoryDebugStatus(basePath)
@@ -75,5 +65,6 @@ export function registerDebugCommand(program: Command) {
 }
 
 function resolveBasePath(options: DebugOptions): string {
-  return options.global ? getGlobalMemoryPath() : getProjectMemoryPath(process.cwd())
+  void options
+  return getProjectMemoryPath(process.cwd())
 }

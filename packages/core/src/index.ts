@@ -3,10 +3,8 @@ export * from './types.js'
 export { generateId } from './id.js'
 export { parseMarkdown, serializeMarkdown } from './markdown.js'
 export {
-  getGlobalMemoryPath,
   getProjectMemoryPath,
   findMemoryBase,
-  initGlobalMemory,
   initProjectMemory,
   createMemory,
   readMemory,
@@ -18,7 +16,6 @@ export {
   checkIndexConsistency,
   findMemoryFile,
   type ConsistencyReport,
-  GLOBAL_SUBDIRS,
   type DeleteMemoryOptions,
 } from './storage.js'
 export { MemoryIndex, type SearchOptions, type SearchResult, type IndexStats } from './indexer.js'
@@ -84,6 +81,7 @@ export {
   deferRecommendation,
   generateRecommendations,
   listRecommendations,
+  preferContradictionRecommendation,
   rejectRecommendation,
   seedIntelligenceEvaluationDataset,
   type ApplyRecommendationOptions,

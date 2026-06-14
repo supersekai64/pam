@@ -1,13 +1,12 @@
 import { Command } from 'commander'
-import { readMemory, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
+import { readMemory, getProjectMemoryPath } from 'pamh-core'
 
 export function registerShowCommand(program: Command) {
   program
     .command('show <id>')
     .description('Show a memory by ID')
-    .option('--project', 'Use project memory instead of global')
-    .action(async (id, options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+    .action(async (id) => {
+      const basePath = getProjectMemoryPath(process.cwd())
 
       const memory = await readMemory(basePath, id)
 

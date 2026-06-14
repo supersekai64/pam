@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { getGlobalMemoryPath, getProjectMemoryPath, recordHookEvent } from 'pamh-core'
+import { getProjectMemoryPath, recordHookEvent } from 'pamh-core'
 
 const HOOK_EVENT_TYPES = [
   'session-start',
@@ -19,7 +19,6 @@ export function registerHookCommand(program: Command) {
   hook
     .command('record <type>')
     .description('Record a lifecycle hook event for assisted capture workflows')
-    .option('--project', 'Use project memory instead of global')
     .option('--agent <agent>', 'Agent or tool name')
     .option('--model <model>', 'Model name when known')
     .option('--session-id <sessionId>', 'Agent session identifier')
@@ -50,7 +49,7 @@ export function registerHookCommand(program: Command) {
         data.model = options.model
       }
 
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+      const basePath = getProjectMemoryPath(process.cwd())
       const event = await recordHookEvent(basePath, {
         type,
         agent: options.agent,

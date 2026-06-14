@@ -9,7 +9,6 @@ import type { Memory, MemoryScope, MemoryStatus, MemoryType } from './types.js'
 export interface CompileContextOptions {
   query?: string
   maxTokens?: number
-  includeGlobal?: boolean
   includeProject?: boolean
   includeSearch?: boolean
 }
@@ -18,7 +17,6 @@ export interface CompiledContext {
   content: string
   tokenCount: number
   sources: {
-    global: Memory[]
     project: Memory[]
     search: Memory[]
   }
@@ -26,44 +24,51 @@ export interface CompiledContext {
 
 const DEFAULT_MAX_TOKENS = 4000
 const CHARS_PER_TOKEN = 4
+const CONTEXT_TYPE_WEIGHTS: Record<string, number> = {
+  rule: 1000,
+  decision: 930,
+  preference: 900,
+  knowledge: 830,
+  mistake: 730,
+  task: 700,
+  pattern: 660,
+  client: 600,
+  session: 160,
+}
+
+const CONTEXT_SECTION_TITLES: Record<string, string> = {
+  rule: 'Current Project Rules',
+  decision: 'Active Decisions',
+  preference: 'Durable Preferences',
+  knowledge: 'Project Knowledge',
+  mistake: 'Known Pitfalls',
+  task: 'Open Tasks',
+  pattern: 'Reusable Patterns',
+  client: 'Client Context',
+  session: 'Recent Activity',
+}
 
 export async function compileContext(
-  globalBasePath: string,
   projectBasePath: string,
   options: CompileContextOptions = {}
 ): Promise<CompiledContext> {
   const {
     query,
     maxTokens = DEFAULT_MAX_TOKENS,
-    includeGlobal = true,
     includeProject = true,
     includeSearch = true,
   } = options
 
   const sources = {
-    global: [] as Memory[],
     project: [] as Memory[],
     search: [] as Memory[],
   }
 
   let currentTokens = 0
 
-  if (includeGlobal && existsSync(globalBasePath)) {
-    const globalMemories = await listMemories(globalBasePath)
-    const activeGlobal = globalMemories.filter((m) => m.metadata.status === 'active')
-
-    for (const memory of activeGlobal) {
-      const memoryTokens = estimateTokens(memory.content)
-      if (currentTokens + memoryTokens <= maxTokens) {
-        sources.global.push(memory)
-        currentTokens += memoryTokens
-      }
-    }
-  }
-
   if (includeProject && existsSync(projectBasePath)) {
     const projectMemories = await listMemories(projectBasePath)
-    const activeProject = projectMemories.filter((m) => m.metadata.status === 'active')
+    const activeProject = projectMemories.filter(isContextMemory).sort(compareContextMemories)
 
     for (const memory of activeProject) {
       const memoryTokens = estimateTokens(memory.content)
@@ -81,7 +86,7 @@ export async function compileContext(
       index.close()
 
       for (const result of searchResults) {
-        if (result.status === 'active') {
+        if (result.status === 'active' && !isNoiseResult(result)) {
           const memoryTokens = estimateTokens(result.content)
           if (currentTokens + memoryTokens <= maxTokens) {
             sources.search.push({
@@ -114,17 +119,14 @@ export async function compileContext(
     details: {
       query,
       maxTokens,
-      includeGlobal,
       includeProject,
       includeSearch,
       tokenCount: currentTokens,
       source_counts: {
-        global: sources.global.length,
         project: sources.project.length,
         search: sources.search.length,
       },
       source_ids: {
-        global: sources.global.map((memory) => memory.metadata.id),
         project: sources.project.map((memory) => memory.metadata.id),
         search: sources.search.map((memory) => memory.metadata.id),
       },
@@ -152,7 +154,6 @@ export async function writeCompiledContext(
       outputPath,
       tokenCount: compiled.tokenCount,
       source_counts: {
-        global: compiled.sources.global.length,
         project: compiled.sources.project.length,
         search: compiled.sources.search.length,
       },
@@ -174,26 +175,24 @@ function formatCompiledContext(sources: CompiledContext['sources'], query?: stri
   }
   content += '\n---\n\n'
 
-  if (sources.global.length > 0) {
-    content += '## Global Memory\n\n'
-    for (const memory of sources.global) {
-      content += formatMemory(memory)
-    }
-    content += '\n'
-  }
-
   if (sources.project.length > 0) {
     content += '## Project Memory\n\n'
-    for (const memory of sources.project) {
-      content += formatMemory(memory)
+    for (const [section, memories] of groupMemoriesBySection(sources.project)) {
+      content += `### ${section}\n\n`
+      for (const memory of memories) {
+        content += formatMemory(memory)
+      }
     }
     content += '\n'
   }
 
   if (sources.search.length > 0) {
     content += '## Search Results\n\n'
-    for (const memory of sources.search) {
-      content += formatMemory(memory)
+    for (const [section, memories] of groupMemoriesBySection(sources.search)) {
+      content += `### ${section}\n\n`
+      for (const memory of memories) {
+        content += formatMemory(memory)
+      }
     }
     content += '\n'
   }
@@ -202,12 +201,65 @@ function formatCompiledContext(sources: CompiledContext['sources'], query?: stri
 }
 
 function formatMemory(memory: Memory): string {
-  let output = `### ${memory.metadata.id}\n\n`
+  let output = `#### ${memory.metadata.id}\n\n`
   output += `- **Type**: ${memory.metadata.type}\n`
-  output += `- **Scope**: ${memory.metadata.scope}\n`
   if (memory.metadata.tags.length > 0) {
     output += `- **Tags**: ${memory.metadata.tags.join(', ')}\n`
   }
   output += `\n${memory.content}\n\n---\n\n`
   return output
+}
+
+function isContextMemory(memory: Memory): boolean {
+  return memory.metadata.status === 'active' && !isNoiseMemory(memory)
+}
+
+function isNoiseMemory(memory: Memory): boolean {
+  return (
+    memory.metadata.status === 'noise' ||
+    memory.metadata.tags.includes('noise') ||
+    memory.metadata.tags.includes('ignored') ||
+    memory.metadata.tags.includes('pamh-noise') ||
+    memory.metadata.source === 'noise'
+  )
+}
+
+function isNoiseResult(memory: { status: string; tags: string[]; source: string }): boolean {
+  return (
+    memory.status === 'noise' ||
+    memory.tags.includes('noise') ||
+    memory.tags.includes('ignored') ||
+    memory.tags.includes('pamh-noise') ||
+    memory.source === 'noise'
+  )
+}
+
+function compareContextMemories(left: Memory, right: Memory): number {
+  const leftScore = CONTEXT_TYPE_WEIGHTS[left.metadata.type] ?? 500
+  const rightScore = CONTEXT_TYPE_WEIGHTS[right.metadata.type] ?? 500
+  return rightScore - leftScore || right.metadata.updated_at.localeCompare(left.metadata.updated_at)
+}
+
+function groupMemoriesBySection(memories: Memory[]): Array<[string, Memory[]]> {
+  const order = [
+    'Current Project Rules',
+    'Active Decisions',
+    'Durable Preferences',
+    'Project Knowledge',
+    'Known Pitfalls',
+    'Open Tasks',
+    'Reusable Patterns',
+    'Client Context',
+    'Recent Activity',
+  ]
+  const groups = new Map<string, Memory[]>()
+
+  memories.forEach((memory) => {
+    const section = CONTEXT_SECTION_TITLES[memory.metadata.type] ?? 'Project Knowledge'
+    groups.set(section, [...(groups.get(section) ?? []), memory])
+  })
+
+  return [...groups.entries()].sort(
+    (a, b) => order.indexOf(a[0]) - order.indexOf(b[0]) || a[0].localeCompare(b[0])
+  )
 }

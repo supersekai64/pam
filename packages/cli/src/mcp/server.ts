@@ -20,8 +20,6 @@ import {
   type McpToolContext,
 } from './tools.js'
 
-const scopeSchema = z.enum(['global', 'project']).optional()
-
 function jsonResult(value: unknown) {
   return {
     content: [
@@ -43,10 +41,9 @@ export function createPamhMcpServer(context: McpToolContext) {
     'search_memory',
     {
       title: 'Search Memory',
-      description: 'Search PAMH memories by text, type, tag, and scope.',
+      description: 'Search project PAMH memories by text, type, and tag.',
       inputSchema: {
         query: z.string().optional(),
-        scope: scopeSchema,
         type: z.string().optional(),
         tag: z.string().optional(),
         limit: z.number().int().positive().optional(),
@@ -62,7 +59,6 @@ export function createPamhMcpServer(context: McpToolContext) {
       description: 'Get a PAMH memory by ID.',
       inputSchema: {
         id: z.string(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult(await getMemory(input, context))
@@ -76,7 +72,6 @@ export function createPamhMcpServer(context: McpToolContext) {
       inputSchema: {
         content: z.string(),
         type: z.string(),
-        scope: z.enum(['global', 'project']).default('project'),
         tags: z.array(z.string()).optional(),
         salience: z.number().min(0).max(1).optional(),
       },
@@ -100,7 +95,6 @@ export function createPamhMcpServer(context: McpToolContext) {
         agent: z.string().optional(),
         model: z.string().optional(),
         session_id: z.string().optional(),
-        scope: z.enum(['global', 'project']).default('project'),
       },
     },
     async (input) => jsonResult(await memoryCheckpoint(input, context))
@@ -115,7 +109,6 @@ export function createPamhMcpServer(context: McpToolContext) {
         id: z.string(),
         content: z.string().optional(),
         type: z.string().optional(),
-        scope: scopeSchema,
         tags: z.array(z.string()).optional(),
       },
     },
@@ -129,7 +122,6 @@ export function createPamhMcpServer(context: McpToolContext) {
       description: 'Logically delete a PAMH memory.',
       inputSchema: {
         id: z.string(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult({ deleted: await removeMemory(input, context) })
@@ -151,7 +143,7 @@ export function createPamhMcpServer(context: McpToolContext) {
     'compile_context',
     {
       title: 'Compile Context',
-      description: 'Compile context from global, project, linked, and search memories.',
+      description: 'Compile context from project and search memories.',
       inputSchema: {
         query: z.string().optional(),
         maxTokens: z.number().int().positive().optional(),
@@ -170,7 +162,6 @@ export function createPamhMcpServer(context: McpToolContext) {
         old_id: z.string(),
         content: z.string(),
         type: z.string(),
-        scope: scopeSchema,
         tags: z.array(z.string()).optional(),
         salience: z.number().min(0).max(1).optional(),
       },
@@ -186,7 +177,6 @@ export function createPamhMcpServer(context: McpToolContext) {
         'Get the full supersession chain for a memory (all versions from oldest to newest).',
       inputSchema: {
         memory_id: z.string(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult(await getSupersessionChainTool(input, context))
@@ -199,7 +189,6 @@ export function createPamhMcpServer(context: McpToolContext) {
       description: 'Get the latest version of a memory (follows superseded_by chain).',
       inputSchema: {
         memory_id: z.string(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult(await getLatestVersionTool(input, context))
@@ -216,7 +205,6 @@ export function createPamhMcpServer(context: McpToolContext) {
         agent_from: z.string().optional(),
         open_questions: z.array(z.string()).optional(),
         next_steps: z.array(z.string()).optional(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult(await handoffBeginTool(input, context))
@@ -231,7 +219,6 @@ export function createPamhMcpServer(context: McpToolContext) {
       inputSchema: {
         handoff_id: z.string().optional(),
         agent_to: z.string().optional(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult(await handoffAcceptTool(input, context))
@@ -250,7 +237,6 @@ export function createPamhMcpServer(context: McpToolContext) {
         cold_threshold: z.number().min(0).max(1).optional(),
         hard_delete_after_days: z.number().int().min(0).optional(),
         dry_run: z.boolean().optional(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult(await forgetSweepTool(input, context))
@@ -277,7 +263,6 @@ export function createPamhMcpServer(context: McpToolContext) {
         agent: z.string().optional(),
         session_id: z.string().optional(),
         data: z.record(z.string(), z.unknown()).optional(),
-        scope: scopeSchema,
       },
     },
     async (input) => jsonResult(await recordHookEventTool(input, context))

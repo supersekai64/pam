@@ -3,23 +3,23 @@
 ## Export
 
 ```bash
-memory export backup.zip --project
-memory export backup.json --format json --project
-memory export backup.md --format markdown --project
-memory export memory.sqlite --format sqlite --project
+memory export backup.zip
+memory export backup.json --format json
+memory export backup.md --format markdown
+memory export memory.sqlite --format sqlite
 ```
 
 ## Import
 
 ```bash
-memory import backup.json --format json --project
-memory import backup.zip --format zip --project
-memory import memory.md --format markdown --project
+memory import backup.json --format json
+memory import backup.zip --format zip
+memory import memory.md --format markdown
 ```
 
 ## Audit After Import
 
 ```bash
-memory audit --project
-memory doctor check --project
+memory audit
+memory doctor check
 ```

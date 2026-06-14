@@ -3,29 +3,17 @@
 ## Overview
 
 ```text
-Global Memory
-      │
-      ▼
-Project Memories
-      │
-      ▼
+Project Memory
+      |
+      v
 Memory Core
-      │
-      ├── CLI
-      ├── MCP
-      ├── Local API
-      └── Local UI
+      |-- CLI
+      |-- MCP
+      |-- Local API
+      `-- Local UI
 ```
 
-## Memory Layers
-
-### Global Memory
-
-Location: `~/ai-memory`
-
-Contains cross-project knowledge such as identity, preferences, patterns, and decisions.
-
-### Project Memory
+## Memory Layer
 
 Location: `.ai-memory` (discovered by walking up the directory tree)
 
@@ -33,8 +21,10 @@ Contains project-specific knowledge such as architecture, current state, tasks, 
 
 PAMH searches for `.ai-memory/` by walking up the directory tree, similar to how `.git` works. This allows:
 
-- **Shared memory**: Initialize in a parent directory, all subdirectories use it
-- **Isolated memory**: Initialize in a specific subdirectory for project-specific memory
+- **Shared memory**: initialize in a parent directory, all subdirectories use it
+- **Isolated memory**: initialize in a specific subdirectory for project-specific memory
+
+Legacy scopes in existing Markdown are normalized to `project` when read.
 
 See [docs/concepts.md](concepts.md#memory-discovery) for details.
 
@@ -52,7 +42,7 @@ Command-line interface published to npm. Depends on core and embeds the MCP serv
 
 ### pamh-api
 
-Local HTTP API for human-facing clients. It binds to `127.0.0.1` by default and delegates all persistence to core. Future desktop apps and IDE extensions can use this API boundary from separate repositories.
+Local HTTP API for human-facing clients. It binds to `127.0.0.1` by default and delegates all persistence to core. The API also owns UI-facing projections such as the composed LLM context preview: it normalizes legacy metadata, prioritizes durable memories, limits recent sessions, and reports exclusion reasons for context hygiene. Future desktop apps and IDE extensions can use this API boundary from separate repositories.
 
 ### pamh-ui
 
@@ -60,39 +50,37 @@ Static local web UI served by the local API server. It does not own data or cont
 
 ## Storage
 
-- **Source of truth** : Markdown
-- **Index** : SQLite (memory.db)
+- **Source of truth**: Markdown
+- **Index**: SQLite (`memory.db`)
 
 ## Search
 
 - Text search (FTS5)
 - Tag search
-- Scope search
+- Metadata search
 - Semantic search (sqlite-vec)
 
 ## Lifecycle
 
 ```text
 Create
-  │
-  ▼
+  |
+  v
 Validate
-  │
-  ▼
+  |
+  v
 Index
-  │
-  ▼
+  |
+  v
 Search
-  │
-  ▼
+  |
+  v
 Update / Archive / Delete / Restore
 ```
 
 ## Context Resolution
 
 ```text
-Global Memory
-      +
 Project Memory
       +
 Search Results

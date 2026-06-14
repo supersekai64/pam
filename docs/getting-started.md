@@ -53,14 +53,6 @@ memory init
 
 This creates `.ai-memory/` in the current directory and auto-configures supported project-level agent integrations. Use `memory init --no-integrations` for memory storage only.
 
-### Global Memory
-
-```bash
-memory init global
-```
-
-This creates `~/ai-memory/` for cross-project preferences and patterns.
-
 ## Configure Your IDE or AI Agent
 
 PAMH works best when integrated with your AI-powered development tools via MCP (Model Context Protocol).
@@ -135,7 +127,7 @@ You can also add memories manually:
 
 ```bash
 # Add a memory
-memory add -t decision -s project -c "Use PostgreSQL for the main database"
+memory add -t decision -c "Use PostgreSQL for the main database"
 
 # List memories
 memory list

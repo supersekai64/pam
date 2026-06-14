@@ -12,21 +12,33 @@ By default, the server binds to `127.0.0.1:3939`.
 
 ## Capabilities
 
-- View project or global memory stores
-- Search memories
-- Filter by status
+- View the current project memory store
+- Browse Evidence as kanban-style type columns
+- Search memories and filter by status
+- Open memory details in a modal
 - Create memories
-- Edit content, type, scope, and tags
+- Edit content, type, and tags
 - Archive, restore, logically delete, or physically delete memories
 - View local index statistics
+- Preview the composed LLM context with selected sources and exclusion reasons
 - Review assisted maintenance recommendations
-- Preview and create proposed distilled memories
 - Inspect the Knowledge Graph in a separate tab
 - Inspect evidence IDs for recommendations, graph entities, and graph relations
 
-The neural/concept map and the Knowledge Graph are separate views. The concept
-map shows recurring memory signals and co-occurrence. The Knowledge Graph shows
-explicit entities and typed, evidence-backed relations.
+The LLM context concept map and the Knowledge Graph are separate views. The
+concept map shows recurring signals and co-occurrence from the current composed
+LLM context. The Knowledge Graph shows explicit entities and typed,
+evidence-backed relations.
+
+The LLM context preview is not a raw recent-memory list. The API composes it
+from active project memories by prioritizing durable rules, decisions,
+preferences, and knowledge before tasks, pitfalls, patterns, and client
+context. General context excludes session activity; focused context may include
+a small amount of matching recent session activity. Noise, deleted, archived,
+proposed, duplicate implementation summaries, and lower-ranked overflow are
+excluded from the LLM context. Exclusion reasons remain available in the UI
+source panel as hygiene metadata, but are not rendered into the Markdown text
+copied or sent to the LLM.
 
 ## Architecture
 

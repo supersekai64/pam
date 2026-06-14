@@ -1,25 +1,20 @@
 import { Command } from 'commander'
-import { listMemories, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
+import { listMemories, getProjectMemoryPath } from 'pamh-core'
 
 export function registerListCommand(program: Command) {
   program
     .command('list')
     .description('List all memories')
-    .option('--project', 'Use project memory instead of global')
     .option('--type <type>', 'Filter by type')
-    .option('--scope <scope>', 'Filter by scope')
     .option('--tag <tag>', 'Filter by tag')
     .option('--status <status>', 'Filter by status')
     .action(async (options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+      const basePath = getProjectMemoryPath(process.cwd())
 
       let memories = await listMemories(basePath)
 
       if (options.type) {
         memories = memories.filter((m) => m.metadata.type === options.type)
-      }
-      if (options.scope) {
-        memories = memories.filter((m) => m.metadata.scope === options.scope)
       }
       if (options.tag) {
         memories = memories.filter((m) => m.metadata.tags.includes(options.tag))

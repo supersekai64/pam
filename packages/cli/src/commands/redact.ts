@@ -1,19 +1,12 @@
 import { Command } from 'commander'
-import {
-  readMemory,
-  updateMemory,
-  redactContent,
-  getGlobalMemoryPath,
-  getProjectMemoryPath,
-} from 'pamh-core'
+import { readMemory, updateMemory, redactContent, getProjectMemoryPath } from 'pamh-core'
 
 export function registerRedactCommand(program: Command) {
   program
     .command('redact <id>')
     .description('Redact sensitive information from a memory')
-    .option('--project', 'Use project memory instead of global')
-    .action(async (id, options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+    .action(async (id) => {
+      const basePath = getProjectMemoryPath(process.cwd())
 
       const memory = await readMemory(basePath, id)
       if (!memory) {

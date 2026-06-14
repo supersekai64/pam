@@ -135,6 +135,36 @@ Markdown memory content
     expect(results.length).toBe(1)
   })
 
+  it('should normalize legacy project type in JSON imports', async () => {
+    const jsonData = {
+      version: '1.0.0',
+      memories: [
+        {
+          metadata: {
+            id: 'mem_legacy_project_type',
+            type: 'project',
+            scope: 'project',
+            status: 'active',
+            tags: [],
+            source: 'import',
+          },
+          content: 'Legacy project metadata is now regular knowledge.',
+        },
+      ],
+    }
+
+    const inputPath = join(tempDir, 'legacy-project-type.json')
+    await writeFile(inputPath, JSON.stringify(jsonData, null, 2), 'utf-8')
+
+    const result = await importMemories({ format: 'json', inputPath, basePath })
+
+    expect(result.imported).toBe(1)
+    expect(result.skipped).toBe(0)
+
+    const memories = await listMemories(basePath)
+    expect(memories[0].metadata.type).toBe('knowledge')
+  })
+
   it('should handle invalid JSON gracefully', async () => {
     const inputPath = join(tempDir, 'invalid.json')
     await writeFile(inputPath, 'not valid json', 'utf-8')

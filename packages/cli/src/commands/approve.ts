@@ -1,13 +1,12 @@
 import { Command } from 'commander'
-import { approveMemory, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
+import { approveMemory, getProjectMemoryPath } from 'pamh-core'
 
 export function registerApproveCommand(program: Command) {
   program
     .command('approve <id>')
     .description('Approve a proposed memory')
-    .option('--project', 'Use project memory instead of global')
-    .action(async (id, options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+    .action(async (id) => {
+      const basePath = getProjectMemoryPath(process.cwd())
 
       const approved = await approveMemory(basePath, id)
 

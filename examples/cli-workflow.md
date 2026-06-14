@@ -13,24 +13,24 @@ memory init
 ## Add Memories
 
 ```bash
-memory add --project -t decision -s project --tags "architecture,sqlite" -c "Use SQLite as a rebuildable local index."
-memory add --project -t knowledge -s project --tags "typescript" -c "Core packages must stay independent from CLI and MCP."
-memory add --project -t mistake -s project --tags "security" -c "Do not store secrets in memory files."
+memory add -t decision --tags "architecture,sqlite" -c "Use SQLite as a rebuildable local index."
+memory add -t knowledge --tags "typescript" -c "Core packages must stay independent from CLI and MCP."
+memory add -t mistake --tags "security" -c "Do not store secrets in memory files."
 ```
 
 ## List And Search
 
 ```bash
-memory list --project
-memory search "SQLite" --project
-memory search --tag security --project
-memory search "local index" --semantic --project
+memory list
+memory search "SQLite"
+memory search --tag security
+memory search "local index" --semantic
 ```
 
 ## Compile Context
 
 ```bash
-memory context --project --query "architecture" --output
+memory context --query "architecture" --output
 ```
 
 The compiled context is written to:

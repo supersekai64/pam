@@ -42,7 +42,7 @@ export interface DistillationProposal {
   id: string
   concept: string
   type: MemoryType
-  scope: 'project' | 'global'
+  scope: 'project'
   tags: string[]
   content: string
   source_ids: string[]
@@ -301,6 +301,59 @@ export async function applyRecommendation(
   return { recommendation: updated, memory }
 }
 
+export async function preferContradictionRecommendation(
+  basePath: string,
+  id: string,
+  preferredId: string
+): Promise<{
+  recommendation: MemoryRecommendation
+  preferred: Memory | null
+  archived: Memory | null
+}> {
+  const recommendations = await readRecommendations(basePath)
+  const recommendation = recommendations.find((item) => item.id === id)
+  if (!recommendation) {
+    throw new Error(`Recommendation not found: ${id}`)
+  }
+  if (recommendation.type !== 'contradiction') {
+    throw new Error(`Recommendation is not a contradiction: ${id}`)
+  }
+  if (!recommendation.evidence_ids.includes(preferredId)) {
+    throw new Error(`Preferred memory is not part of this contradiction: ${preferredId}`)
+  }
+
+  const archivedId = recommendation.evidence_ids.find((evidenceId) => evidenceId !== preferredId)
+  if (!archivedId) {
+    throw new Error(`Contradiction recommendation has no opposing memory: ${id}`)
+  }
+
+  const preferred = await updateMemory(basePath, preferredId, { status: 'active' })
+  const archived = await updateMemory(basePath, archivedId, {
+    status: 'archived',
+    superseded_by: preferredId,
+    tags: mergeTags(await getMemoryTags(basePath, archivedId), ['pamh-contradiction-resolved']),
+  })
+
+  const updated = await setRecommendationStatus(basePath, id, 'accepted')
+  if (!updated) throw new Error(`Recommendation not found after resolution: ${id}`)
+
+  await recordMemoryDebugEvent(basePath, {
+    action: 'recommendation.resolve_contradiction',
+    outcome: 'ok',
+    tool: 'intelligence',
+    memory_id: preferredId,
+    details: {
+      recommendation_id: id,
+      preferred_id: preferredId,
+      archived_id: archivedId,
+      evidence_ids: recommendation.evidence_ids,
+    },
+    after: preferred ? summarizeMemoryForDebug(preferred) : undefined,
+  })
+
+  return { recommendation: updated, preferred, archived }
+}
+
 export async function analyzeDistillation(basePath: string): Promise<DistillationProposal[]> {
   const memories = await listMemories(basePath)
   const buckets = getConceptBuckets(memories)
@@ -327,6 +380,35 @@ export async function applyDistillationProposal(
   proposal: DistillationProposal,
   status: MemoryStatus = 'proposed'
 ): Promise<Memory> {
+  const sortedSourceIds = [...proposal.source_ids].sort()
+  const fingerprint = sortedSourceIds.join('|')
+
+  // Idempotency: if an existing non-deleted distillation memory already covers
+  // the exact same source set, return it instead of creating a duplicate.
+  const existingMemories = await listMemories(basePath)
+  const existing = existingMemories.find((candidate) => {
+    if (candidate.metadata.source !== 'distillation') return false
+    if (candidate.metadata.status === 'deleted') return false
+    const ids = [...(candidate.metadata.source_ids ?? [])].sort()
+    return ids.join('|') === fingerprint
+  })
+
+  if (existing) {
+    await recordMemoryDebugEvent(basePath, {
+      action: 'distillation.apply',
+      outcome: 'skipped',
+      tool: 'intelligence',
+      memory_id: existing.metadata.id,
+      details: {
+        proposal_id: proposal.id,
+        concept: proposal.concept,
+        source_ids: proposal.source_ids,
+        reason: 'already_distilled',
+      },
+    })
+    return existing
+  }
+
   const memory = await createMemory(basePath, {
     type: proposal.type,
     scope: proposal.scope,
@@ -338,6 +420,33 @@ export async function applyDistillationProposal(
     content: proposal.content,
   })
 
+  // Archive each source memory and mark it as superseded by the new distilled
+  // memory. This is what makes "distillation" actually consolidate the store
+  // instead of duplicating it: source memories leave the Active LLM context
+  // while staying restorable from the Evidence view.
+  const archivedSources: string[] = []
+  for (const sourceId of proposal.source_ids) {
+    try {
+      const updated = await updateMemory(basePath, sourceId, {
+        status: 'archived',
+        superseded_by: memory.metadata.id,
+      })
+      if (updated) archivedSources.push(sourceId)
+    } catch (error) {
+      await recordMemoryDebugEvent(basePath, {
+        action: 'distillation.apply',
+        outcome: 'error',
+        tool: 'intelligence',
+        memory_id: sourceId,
+        details: {
+          proposal_id: proposal.id,
+          reason: 'archive_source_failed',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      })
+    }
+  }
+
   await recordMemoryDebugEvent(basePath, {
     action: 'distillation.apply',
     outcome: 'ok',
@@ -347,6 +456,7 @@ export async function applyDistillationProposal(
       proposal_id: proposal.id,
       concept: proposal.concept,
       source_ids: proposal.source_ids,
+      archived_sources: archivedSources,
       compression_ratio: proposal.compression_ratio,
     },
     after: summarizeMemoryForDebug(memory),
@@ -557,7 +667,7 @@ export async function seedIntelligenceEvaluationDataset(basePath: string): Promi
   for (let i = 0; i < 20; i += 1) {
     await createMemory(basePath, {
       type: 'session',
-      scope: 'temporary',
+      scope: 'project',
       status: i % 3 === 0 ? 'noise' : 'proposed',
       source: 'evaluation-dataset',
       tags: ['pamh-noise', 'generated-test-fragment'],
@@ -649,8 +759,7 @@ function buildRecommendationCandidates(memories: Memory[]): MemoryRecommendation
       makeRecommendation(now, {
         type: 'noise_candidate',
         title: `Mark low-value memory ${memory.metadata.id} as noise`,
-        explanation:
-          'The memory is very short, temporary, generated, or already tagged as low signal.',
+        explanation: 'The memory is very short, generated, or already tagged as low signal.',
         evidence_ids: [memory.metadata.id],
         action: 'mark_noise',
         payload: { target_id: memory.metadata.id },
@@ -848,7 +957,6 @@ function isLowValue(memory: Memory): boolean {
   if (isNoise(memory)) return false
   const content = memory.content.trim()
   if (memory.metadata.status === 'deleted') return false
-  if (memory.metadata.scope === 'temporary') return true
   if (content.length < 24) return true
   if (/^(tmp|test|foo|bar|lorem|debug log)\b/i.test(content)) return true
   return memory.metadata.tags.some((tag) =>
@@ -991,7 +1099,6 @@ function entityTypeForMemory(type: MemoryType): KnowledgeEntity['type'] {
     mistake: 'mistake',
     pattern: 'concept',
     preference: 'concept',
-    project: 'project',
     rule: 'rule',
     session: 'feature',
     task: 'feature',

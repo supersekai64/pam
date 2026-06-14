@@ -85,12 +85,18 @@ function probeServer(url: string): Promise<boolean> {
 function shutdownServer(url: string): Promise<void> {
   return new Promise((resolve) => {
     const parsed = new URL(`${url}/api/shutdown`)
-    const req = httpRequest({ host: parsed.hostname, port: parsed.port, path: parsed.pathname, method: 'POST' }, (res) => {
-      res.resume()
+    const req = httpRequest(
+      { host: parsed.hostname, port: parsed.port, path: parsed.pathname, method: 'POST' },
+      (res) => {
+        res.resume()
+        resolve()
+      }
+    )
+    req.on('error', () => resolve())
+    req.setTimeout(3000, () => {
+      req.destroy()
       resolve()
     })
-    req.on('error', () => resolve())
-    req.setTimeout(3000, () => { req.destroy(); resolve() })
     req.end()
   })
 }
@@ -119,13 +125,17 @@ function killProcessOnPort(port: number): Promise<void> {
     if (process.platform === 'win32') {
       execFile(
         'powershell',
-        ['-NoProfile', '-Command',
-          `$p = (Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue).OwningProcess; if ($p) { Stop-Process -Id $p -Force }`
+        [
+          '-NoProfile',
+          '-Command',
+          `$p = (Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue).OwningProcess; if ($p) { Stop-Process -Id $p -Force }`,
         ],
         () => resolve()
       )
     } else {
-      execFile('sh', ['-c', `lsof -ti tcp:${port} | xargs kill -9 2>/dev/null || true`], () => resolve())
+      execFile('sh', ['-c', `lsof -ti tcp:${port} | xargs kill -9 2>/dev/null || true`], () =>
+        resolve()
+      )
     }
   })
 }

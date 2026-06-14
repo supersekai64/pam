@@ -1,7 +1,8 @@
 import { createReadStream, existsSync } from 'node:fs'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { extname, join, normalize, resolve, sep } from 'node:path'
+import { dirname, extname, join, normalize, resolve, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   MemoryIndex,
   analyzeDistillation,
@@ -14,9 +15,9 @@ import {
   deferRecommendation,
   deleteMemory,
   generateRecommendations,
-  getGlobalMemoryPath,
   getProjectMemoryPath,
   indexAllMemories,
+  preferContradictionRecommendation,
   recordMemoryDebugEvent,
   readMemory,
   rejectRecommendation,
@@ -29,7 +30,6 @@ import {
   type SearchResult,
   type UpdateMemoryInput,
 } from 'pamh-core'
-import { getUiDistPath } from 'pamh-ui'
 
 export interface LocalApiServerOptions {
   cwd?: string
@@ -43,8 +43,6 @@ export interface LocalApiServer {
   url: string
   close: () => Promise<void>
 }
-
-type Store = 'global' | 'project'
 
 interface ApiErrorResponse {
   error: string
@@ -83,6 +81,17 @@ interface ConceptSample {
   content: string
 }
 
+interface ContextSource extends ConceptSample {
+  section: string
+  reasons: string[]
+}
+
+interface ContextExclusion {
+  id: string
+  type: string
+  reason: string
+}
+
 interface ViewStats {
   total: number
   active: number
@@ -107,11 +116,40 @@ interface NoiseConfig {
 
 const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 3939
+const DEFAULT_STATIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '../../ui/dist/public')
 const NOISE_CONFIG_FILE = 'ui-noise.json'
+const PROJECT_SCOPE = 'project'
+const MAX_GENERAL_CONTEXT_SESSIONS = 0
+const MAX_FOCUSED_CONTEXT_SESSIONS = 4
+const GENERAL_CONTEXT_IGNORED_CONCEPTS = ['migration', 'phase-2', 'pnpm', 'scope', 'project-only']
+
+const CONTEXT_TYPE_WEIGHTS: Record<string, number> = {
+  rule: 1000,
+  decision: 930,
+  preference: 900,
+  knowledge: 830,
+  mistake: 730,
+  task: 700,
+  pattern: 660,
+  client: 600,
+  session: 160,
+}
+
+const CONTEXT_SECTION_TITLES: Record<string, string> = {
+  rule: 'Current Project Rules',
+  decision: 'Active Decisions',
+  preference: 'Durable Preferences',
+  knowledge: 'Project Knowledge',
+  mistake: 'Known Pitfalls',
+  task: 'Open Tasks',
+  pattern: 'Reusable Patterns',
+  client: 'Client Context',
+  session: 'Recent Activity',
+}
 
 export function createLocalApiServer(options: LocalApiServerOptions = {}): Server {
   const cwd = options.cwd ?? process.cwd()
-  const staticDir = options.staticDir ?? getUiDistPath()
+  const staticDir = options.staticDir ?? DEFAULT_STATIC_DIR
 
   return createServer(async (request, response) => {
     try {
@@ -179,8 +217,30 @@ async function handleApiRequest(
     return
   }
 
-  const store = parseStore(url)
-  const basePath = resolveBasePath(cwd, store)
+  const storeParam = url.searchParams.get('store')
+  if (storeParam && storeParam !== 'project') {
+    sendJson(response, 400, { error: 'Unsupported store parameter. PAMH is project-only.' })
+    return
+  }
+
+  const basePath = getProjectMemoryPath(cwd)
+
+  if (method === 'POST' && url.pathname === '/api/debug/reset') {
+    const body = (await readJson(request)) as { confirm?: string } | null
+    if (body?.confirm !== 'RESET') {
+      sendJson(response, 400, {
+        error: 'Missing confirmation. POST { "confirm": "RESET" } to wipe the store.',
+      })
+      return
+    }
+    let removed = false
+    if (existsSync(basePath)) {
+      await rm(basePath, { recursive: true, force: true })
+      removed = true
+    }
+    sendJson(response, 200, { ok: true, basePath, removed })
+    return
+  }
 
   if (method === 'GET' && url.pathname === '/api/recommendations') {
     const report = await generateRecommendations(basePath)
@@ -210,6 +270,19 @@ async function handleApiRequest(
     if (!recommendation)
       return sendJson(response, 404, { error: `Recommendation not found: ${id}` })
     sendJson(response, 200, { recommendation })
+    return
+  }
+
+  const preferRecommendationMatch = url.pathname.match(/^\/api\/recommendations\/([^/]+)\/prefer$/)
+  if (preferRecommendationMatch && method === 'POST') {
+    const id = decodeURIComponent(preferRecommendationMatch[1])
+    const body = (await readJson(request)) as { preferredId?: unknown }
+    if (typeof body.preferredId !== 'string' || !body.preferredId.trim()) {
+      sendJson(response, 400, { error: 'Missing preferredId' })
+      return
+    }
+    const result = await preferContradictionRecommendation(basePath, id, body.preferredId)
+    sendJson(response, 200, result)
     return
   }
 
@@ -247,21 +320,36 @@ async function handleApiRequest(
 
   if (method === 'GET' && url.pathname === '/api/concepts') {
     const limit = clampNumber(Number(url.searchParams.get('limit') ?? 24), 8, 100)
+    const query = url.searchParams.get('query') ?? undefined
     const includeNoise = parseBoolean(url.searchParams.get('includeNoise'))
+    const maxMemories = clampNumber(Number(url.searchParams.get('maxMemories') ?? 18), 6, 48)
     const rawMemories = await getIndexedMemories(basePath)
     const noiseConfig = await readNoiseConfig(basePath)
     const view = getVisibleMemories(rawMemories, { includeNoise })
-    const conceptGraph = buildConceptGraph(view.memories, limit, noiseConfig.ignoredConcepts)
+    const ignoredConcepts = getContextIgnoredConcepts(query, noiseConfig.ignoredConcepts)
+    const composition = composeContextSources(view.memories, query, maxMemories)
+    const conceptGraph = filterContextConceptGraph(
+      buildConceptGraph(
+        composition.selected.map((source) => source.memory),
+        limit,
+        ignoredConcepts
+      ),
+      query
+    )
     await recordMemoryDebugEvent(basePath, {
       action: 'memory.analyze.concepts',
       outcome: 'ok',
       tool: 'ui-api',
       details: {
         limit,
+        query,
         includeNoise,
+        maxMemories,
         rawTotal: view.rawTotal,
         excludedNoise: view.excludedNoise,
         totalMemories: conceptGraph.totalMemories,
+        source_ids: composition.selected.map((source) => source.memory.id),
+        exclusion_count: composition.exclusions.length,
         concept_count: conceptGraph.concepts.length,
         edge_count: conceptGraph.edges.length,
         top_concepts: conceptGraph.concepts.slice(0, 10).map((concept) => ({
@@ -276,8 +364,13 @@ async function handleApiRequest(
       rawTotalMemories: view.rawTotal,
       excludedNoiseMemories: view.excludedNoise,
       ignoredConcepts: noiseConfig.ignoredConcepts,
+      exclusions: composition.exclusions.map(({ memory, reason }) => ({
+        id: memory.id,
+        type: memory.type,
+        reason,
+      })),
       calculation:
-        'Concept strength combines tag weight, keyword recurrence, status weight, frequency, and co-occurrence across active project memories. Noise memories are excluded by default.',
+        'Concept strength combines tag weight, keyword recurrence, frequency, and co-occurrence across the memories selected for the current LLM context. Context exclusions match the LLM context preview policy.',
     })
     return
   }
@@ -331,12 +424,12 @@ async function handleApiRequest(
     const rawMemories = await getIndexedMemories(basePath)
     const noiseConfig = await readNoiseConfig(basePath)
     const view = getVisibleMemories(rawMemories, { includeNoise })
-    const contextMemories = filterMemories(view.memories, {
+    const preview = buildContextPreview(
+      view.memories,
       query,
-      status: 'active',
-    }).slice(0, maxMemories)
-    const concepts = buildConceptGraph(view.memories, 12, noiseConfig.ignoredConcepts).concepts
-    const preview = buildContextPreview(contextMemories, concepts, query)
+      maxMemories,
+      getContextIgnoredConcepts(query, noiseConfig.ignoredConcepts)
+    )
 
     await recordMemoryDebugEvent(basePath, {
       action: 'context.preview',
@@ -346,9 +439,10 @@ async function handleApiRequest(
         query,
         includeNoise,
         maxMemories,
-        memory_count: contextMemories.length,
+        memory_count: preview.memoryCount,
         token_estimate: preview.tokenEstimate,
-        source_ids: contextMemories.map((memory) => memory.id),
+        source_ids: preview.sources.map((memory) => memory.id),
+        exclusion_count: preview.exclusions.length,
       },
     })
 
@@ -507,14 +601,6 @@ async function handleApiRequest(
   sendJson(response, 404, { error: 'Not found' })
 }
 
-function parseStore(url: URL): Store {
-  return url.searchParams.get('store') === 'global' ? 'global' : 'project'
-}
-
-function resolveBasePath(cwd: string, store: Store): string {
-  return store === 'global' ? getGlobalMemoryPath() : getProjectMemoryPath(cwd)
-}
-
 function notFound(id: string): ApiErrorResponse {
   return { error: `Memory not found: ${id}` }
 }
@@ -606,7 +692,15 @@ async function getIndexedMemories(basePath: string): Promise<SearchResult[]> {
   }
 
   index.close()
-  return memories
+  return memories.map(normalizeIndexedSearchResult)
+}
+
+function normalizeIndexedSearchResult(memory: SearchResult): SearchResult {
+  return {
+    ...memory,
+    type: memory.type === 'project' ? 'knowledge' : memory.type,
+    scope: PROJECT_SCOPE,
+  }
 }
 
 function getVisibleMemories(
@@ -791,6 +885,7 @@ const STOP_CONCEPTS = new Set([
   'is',
   'its',
   'local',
+  'longer',
   'manual',
   'memory',
   'memories',
@@ -961,6 +1056,19 @@ function buildConceptGraph(
   }
 }
 
+function filterContextConceptGraph(
+  graph: { totalMemories: number; concepts: ConceptNode[]; edges: ConceptEdge[] },
+  query: string | undefined
+): { totalMemories: number; concepts: ConceptNode[]; edges: ConceptEdge[] } {
+  const concepts = graph.concepts.filter((concept) => query?.trim() || concept.occurrences > 1)
+  const conceptIds = new Set(concepts.map((concept) => concept.id))
+  return {
+    ...graph,
+    concepts,
+    edges: graph.edges.filter((edge) => conceptIds.has(edge.source) && conceptIds.has(edge.target)),
+  }
+}
+
 function addConceptCandidate(
   candidates: Map<string, { category: 'tag' | 'keyword'; title: string; weight: number }>,
   value: string,
@@ -1021,77 +1129,276 @@ function extractKeywords(content: string): string[] {
 
 function buildContextPreview(
   memories: SearchResult[],
-  concepts: ConceptNode[],
-  query?: string
+  query: string | undefined,
+  maxMemories: number,
+  ignoredConcepts: string[]
 ): {
   content: string
   tokenEstimate: number
   memoryCount: number
-  sources: ConceptSample[]
+  sources: ContextSource[]
   topConcepts: Array<{ title: string; occurrences: number; score: number }>
   generatedAt: string
+  exclusions: ContextExclusion[]
 } {
   const generatedAt = new Date().toISOString()
+  const composition = composeContextSources(memories, query, maxMemories)
+  const concepts = filterContextConceptGraph(
+    buildConceptGraph(
+      composition.selected.map((source) => source.memory),
+      12,
+      ignoredConcepts
+    ),
+    query
+  ).concepts
   const lines = [
-    '# Project Memory Context Preview',
+    '# Project LLM Context',
     '',
     `Generated at: ${generatedAt}`,
     query ? `Focused concept/query: ${query}` : 'Focused concept/query: general project memory',
+    'Store: project',
+    'Policy: active durable memories first; noise, deleted, archived, proposed, duplicate implementation summaries, and lower-ranked overflow are excluded.',
     '',
     '## Strong Concepts',
     '',
   ]
 
-  concepts.slice(0, 10).forEach((concept) => {
-    lines.push(
-      `- ${concept.title}: ${countLabel(concept.occurrences, 'memory', 'memories')}, strength ${Math.round(concept.score)}`
-    )
-  })
+  if (concepts.length) {
+    concepts.slice(0, 10).forEach((concept) => {
+      lines.push(
+        `- ${concept.title}: ${countLabel(concept.occurrences, 'memory', 'memories')}, strength ${Math.round(concept.score)}`
+      )
+    })
+  } else {
+    lines.push('- No strong concepts selected for the current context.')
+  }
 
-  lines.push('', '## Representative Memories', '')
-  memories.forEach((memory) => {
-    lines.push(
-      `### ${memory.id}`,
-      '',
-      `- Type: ${memory.type}`,
-      `- Scope: ${memory.scope}`,
-      `- Updated: ${memory.updated_at}`,
-      memory.tags.length ? `- Tags: ${memory.tags.join(', ')}` : '- Tags: none',
-      '',
-      truncateText(memory.content.trim(), 900),
-      '',
-      '---',
-      ''
-    )
+  const grouped = groupContextSources(composition.selected)
+  const orderedSources = grouped.flatMap(([, sources]) => sources)
+  grouped.forEach(([section, sources]) => {
+    lines.push('', `## ${section}`, '')
+    sources.forEach((source) => {
+      const { memory } = source
+      lines.push(
+        `### ${memory.id}`,
+        '',
+        `- Type: ${memory.type}`,
+        `- Updated: ${memory.updated_at}`,
+        memory.tags.length ? `- Tags: ${memory.tags.join(', ')}` : '- Tags: none',
+        `- Included because: ${source.reasons.join('; ')}`,
+        '',
+        truncateText(memory.content.trim(), 900),
+        '',
+        '---',
+        ''
+      )
+    })
   })
 
   const content = lines.join('\n')
   return {
     content,
     tokenEstimate: Math.ceil(content.length / 4),
-    memoryCount: memories.length,
-    sources: memories.map(toConceptSample),
+    memoryCount: composition.selected.length,
+    sources: orderedSources.map((source) => ({
+      ...toConceptSample(source.memory),
+      section: source.section,
+      reasons: source.reasons,
+    })),
     topConcepts: concepts.slice(0, 10).map((concept) => ({
       title: concept.title,
       occurrences: concept.occurrences,
       score: concept.score,
     })),
     generatedAt,
+    exclusions: composition.exclusions.map(({ memory, reason }) => ({
+      id: memory.id,
+      type: memory.type,
+      reason,
+    })),
   }
+}
+
+function composeContextSources(
+  memories: SearchResult[],
+  query: string | undefined,
+  maxMemories: number
+): {
+  selected: Array<{ memory: SearchResult; section: string; reasons: string[]; score: number }>
+  exclusions: Array<{ memory: SearchResult; reason: string }>
+} {
+  const exclusions: Array<{ memory: SearchResult; reason: string }> = []
+  const focused = Boolean(query?.trim())
+  const maxSessions = focused ? MAX_FOCUSED_CONTEXT_SESSIONS : MAX_GENERAL_CONTEXT_SESSIONS
+  const activeCandidates = memories.filter((memory) => {
+    if (memory.status !== 'active') {
+      exclusions.push({ memory, reason: `not active (${memory.status})` })
+      return false
+    }
+    if (isNoiseMemory(memory)) {
+      exclusions.push({ memory, reason: 'marked as noise' })
+      return false
+    }
+    if (query && !memoryMatchesQuery(memory, query)) {
+      exclusions.push({ memory, reason: 'does not match focused query' })
+      return false
+    }
+    return true
+  })
+
+  const ranked = activeCandidates
+    .map((memory) => ({
+      memory,
+      section: getContextSection(memory),
+      reasons: getContextReasons(memory, focused),
+      score: getContextScore(memory, focused),
+    }))
+    .sort((a, b) => b.score - a.score || b.memory.updated_at.localeCompare(a.memory.updated_at))
+
+  const durable = ranked.filter((item) => item.memory.type !== 'session')
+  const sessions = ranked.filter((item) => item.memory.type === 'session')
+  const durableLimit = Math.max(0, maxMemories - Math.min(maxSessions, sessions.length))
+  const selected = durable.slice(0, durableLimit)
+  const selectedIds = new Set(selected.map((item) => item.memory.id))
+
+  durable.slice(durableLimit).forEach((item) => {
+    exclusions.push({ memory: item.memory, reason: 'lower-ranked durable memory overflow' })
+  })
+
+  const sessionCandidates = sessions.filter((item) => {
+    if (
+      !isDuplicateImplementationSummary(
+        item.memory,
+        selected.map((source) => source.memory)
+      )
+    ) {
+      return true
+    }
+    exclusions.push({
+      memory: item.memory,
+      reason: 'duplicate implementation summary covered by a durable memory',
+    })
+    return false
+  })
+
+  const selectedSessions = sessionCandidates.slice(0, Math.max(0, maxMemories - selected.length))
+  selectedSessions.slice(0, maxSessions).forEach((item) => {
+    selected.push(item)
+    selectedIds.add(item.memory.id)
+  })
+
+  sessionCandidates.forEach((item) => {
+    if (!selectedIds.has(item.memory.id)) {
+      exclusions.push({ memory: item.memory, reason: 'recent activity overflow' })
+    }
+  })
+
+  return { selected, exclusions }
+}
+
+function getContextScore(memory: SearchResult, focused: boolean): number {
+  const typeScore = CONTEXT_TYPE_WEIGHTS[memory.type] ?? 500
+  const recencyScore = getRecencyScore(memory.updated_at)
+  const tagScore = Math.min(memory.tags.length, 6) * 4
+  const generalMetaPenalty =
+    !focused && memory.tags.some((tag) => GENERAL_CONTEXT_IGNORED_CONCEPTS.includes(tag)) ? 80 : 0
+  const implementationPenalty = !focused && isImplementationSummary(memory) ? 120 : 0
+
+  return typeScore + recencyScore + tagScore - generalMetaPenalty - implementationPenalty
+}
+
+function getRecencyScore(updatedAt: string): number {
+  const timestamp = Date.parse(updatedAt)
+  if (!Number.isFinite(timestamp)) return 0
+  const ageDays = Math.max(0, (Date.now() - timestamp) / 86_400_000)
+  return Math.max(0, 70 - ageDays)
+}
+
+function getContextSection(memory: SearchResult): string {
+  return CONTEXT_SECTION_TITLES[memory.type] ?? 'Project Knowledge'
+}
+
+function getContextReasons(memory: SearchResult, focused: boolean): string[] {
+  const reasons = [`active ${memory.type}`]
+  if (['rule', 'decision', 'preference', 'knowledge'].includes(memory.type)) {
+    reasons.push('durable context')
+  }
+  if (memory.type === 'session') {
+    reasons.push('limited recent activity')
+  }
+  if (focused) {
+    reasons.push('matches focused query')
+  }
+  return reasons
+}
+
+function isDuplicateImplementationSummary(memory: SearchResult, selected: SearchResult[]): boolean {
+  if (!isImplementationSummary(memory)) return false
+
+  return selected.some((candidate) => {
+    if (candidate.type === 'session') return false
+    return countSharedTags(memory.tags, candidate.tags) >= 2
+  })
+}
+
+function isImplementationSummary(memory: SearchResult): boolean {
+  return (
+    memory.type === 'session' &&
+    /^(added|built|changed|completed|created|fixed|implemented|removed|updated|verified)\b/i.test(
+      memory.content.trim()
+    )
+  )
+}
+
+function countSharedTags(left: string[], right: string[]): number {
+  const rightTags = new Set(right)
+  return left.filter((tag) => rightTags.has(tag)).length
+}
+
+function groupContextSources(
+  sources: Array<{ memory: SearchResult; section: string; reasons: string[]; score: number }>
+): Array<
+  [string, Array<{ memory: SearchResult; section: string; reasons: string[]; score: number }>]
+> {
+  const order = [
+    'Current Project Rules',
+    'Active Decisions',
+    'Durable Preferences',
+    'Project Knowledge',
+    'Known Pitfalls',
+    'Open Tasks',
+    'Reusable Patterns',
+    'Client Context',
+    'Recent Activity',
+  ]
+  const groups = new Map<
+    string,
+    Array<{ memory: SearchResult; section: string; reasons: string[]; score: number }>
+  >()
+
+  sources.forEach((source) => {
+    groups.set(source.section, [...(groups.get(source.section) ?? []), source])
+  })
+
+  return [...groups.entries()].sort(
+    (a, b) => order.indexOf(a[0]) - order.indexOf(b[0]) || a[0].localeCompare(b[0])
+  )
+}
+
+function getContextIgnoredConcepts(query: string | undefined, ignoredConcepts: string[]): string[] {
+  if (query?.trim()) {
+    return ignoredConcepts
+  }
+
+  return [...new Set([...ignoredConcepts, ...GENERAL_CONTEXT_IGNORED_CONCEPTS])]
 }
 
 function buildConsolidatedMemoryContent(concept: string, memories: SearchResult[]): string {
   const typeCounts = countBy(memories, (memory) => memory.type)
-  const scopeCounts = countBy(memories, (memory) => memory.scope)
   const dominantTypes = Object.entries(typeCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
     .map(([type, count]) => `${type} (${count})`)
-    .join(', ')
-  const dominantScopes = Object.entries(scopeCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 4)
-    .map(([scope, count]) => `${scope} (${count})`)
     .join(', ')
 
   const lines = [
@@ -1101,14 +1408,13 @@ function buildConsolidatedMemoryContent(concept: string, memories: SearchResult[
     '',
     'Dominant distribution:',
     `- Types: ${dominantTypes || 'unknown'}`,
-    `- Scopes: ${dominantScopes || 'unknown'}`,
     '',
     'Representative evidence:',
   ]
 
   memories.slice(0, 10).forEach((memory) => {
     lines.push(
-      `- ${memory.type}/${memory.scope} ${memory.id}: ${truncateText(memory.content.replace(/\s+/g, ' ').trim(), 220)}`
+      `- ${memory.type} ${memory.id}: ${truncateText(memory.content.replace(/\s+/g, ' ').trim(), 220)}`
     )
   })
 

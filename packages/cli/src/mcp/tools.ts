@@ -3,14 +3,12 @@ import {
   compileContext,
   createMemory,
   deleteMemory,
-  getGlobalMemoryPath,
   getProjectMemoryPath,
   indexAllMemories,
   loadAutoCaptureConfig,
   recordAccess,
   updateMemory,
   assertMemoryType,
-  assertMemoryScope,
   supersedeMemory,
   getSupersessionChain,
   getLatestVersion,
@@ -27,13 +25,11 @@ import {
 
 export interface McpToolContext {
   cwd: string
-  globalMemoryPath?: string
   projectMemoryPath?: string
 }
 
 export interface SearchMemoryInput {
   query?: string
-  scope?: 'global' | 'project'
   type?: string
   tag?: string
   limit?: number
@@ -41,13 +37,11 @@ export interface SearchMemoryInput {
 
 export interface GetMemoryInput {
   id: string
-  scope?: 'global' | 'project'
 }
 
 export interface AddMemoryInput {
   content: string
   type: string
-  scope?: 'global' | 'project'
   tags?: string[]
   status?: MemoryStatus
   salience?: number
@@ -63,20 +57,17 @@ export interface MemoryCheckpointInput {
   agent?: string
   model?: string
   session_id?: string
-  scope?: 'global' | 'project'
 }
 
 export interface EditMemoryInput {
   id: string
   content?: string
   type?: string
-  scope?: 'global' | 'project'
   tags?: string[]
 }
 
 export interface DeleteMemoryInput {
   id: string
-  scope?: 'global' | 'project'
 }
 
 export interface CompileContextInput {
@@ -88,19 +79,12 @@ export interface ListProjectsInput {
   includeCurrent?: boolean
 }
 
-export function resolveMemoryPath(
-  context: McpToolContext,
-  scope: 'global' | 'project' = 'project'
-) {
-  if (scope === 'global') {
-    return context.globalMemoryPath ?? getGlobalMemoryPath()
-  }
-
+export function resolveMemoryPath(context: McpToolContext) {
   return context.projectMemoryPath ?? getProjectMemoryPath(context.cwd)
 }
 
 export async function searchMemory(input: SearchMemoryInput, context: McpToolContext) {
-  const basePath = resolveMemoryPath(context, input.scope)
+  const basePath = resolveMemoryPath(context)
   await indexAllMemories(basePath)
 
   const index = new MemoryIndex(basePath)
@@ -116,13 +100,12 @@ export async function searchMemory(input: SearchMemoryInput, context: McpToolCon
 }
 
 export async function getMemory(input: GetMemoryInput, context: McpToolContext) {
-  const basePath = resolveMemoryPath(context, input.scope)
+  const basePath = resolveMemoryPath(context)
   return recordAccess(basePath, input.id)
 }
 
 export async function addMemory(input: AddMemoryInput, context: McpToolContext) {
-  const scope = input.scope ?? 'project'
-  const basePath = resolveMemoryPath(context, scope)
+  const basePath = resolveMemoryPath(context)
 
   const config = await loadAutoCaptureConfig(basePath)
   let status: MemoryStatus = input.status ?? 'active'
@@ -134,7 +117,7 @@ export async function addMemory(input: AddMemoryInput, context: McpToolContext) 
   return createMemory(basePath, {
     content: input.content,
     type: assertMemoryType(input.type),
-    scope: assertMemoryScope(scope),
+    scope: 'project',
     tags: input.tags ?? [],
     source: 'mcp',
     status,
@@ -143,8 +126,7 @@ export async function addMemory(input: AddMemoryInput, context: McpToolContext) 
 }
 
 export async function memoryCheckpoint(input: MemoryCheckpointInput, context: McpToolContext) {
-  const scope = input.scope ?? 'project'
-  const basePath = resolveMemoryPath(context, scope)
+  const basePath = resolveMemoryPath(context)
   const config = await loadAutoCaptureConfig(basePath)
 
   await recordHookEvent(basePath, {
@@ -183,7 +165,7 @@ export async function memoryCheckpoint(input: MemoryCheckpointInput, context: Mc
     created.push(
       await createMemory(basePath, {
         type: assertMemoryType(item.type),
-        scope: assertMemoryScope(scope),
+        scope: 'project',
         content: item.content,
         tags: buildCheckpointTags(item.tag, input),
         source,
@@ -201,7 +183,7 @@ export async function memoryCheckpoint(input: MemoryCheckpointInput, context: Mc
 }
 
 export async function editMemory(input: EditMemoryInput, context: McpToolContext) {
-  const basePath = resolveMemoryPath(context, input.scope)
+  const basePath = resolveMemoryPath(context)
 
   return updateMemory(basePath, input.id, {
     content: input.content,
@@ -211,7 +193,7 @@ export async function editMemory(input: EditMemoryInput, context: McpToolContext
 }
 
 export async function removeMemory(input: DeleteMemoryInput, context: McpToolContext) {
-  const basePath = resolveMemoryPath(context, input.scope)
+  const basePath = resolveMemoryPath(context)
   return deleteMemory(basePath, input.id)
 }
 
@@ -220,14 +202,11 @@ export async function listProjects(input: ListProjectsInput, context: McpToolCon
 }
 
 export async function compileMemoryContext(input: CompileContextInput, context: McpToolContext) {
-  return compileContext(
-    resolveMemoryPath(context, 'global'),
-    resolveMemoryPath(context, 'project'),
-    {
-      query: input.query,
-      maxTokens: input.maxTokens,
-    }
-  )
+  const projectPath = resolveMemoryPath(context)
+  return compileContext(projectPath, {
+    query: input.query,
+    maxTokens: input.maxTokens,
+  })
 }
 
 interface CheckpointItem {
@@ -293,19 +272,17 @@ export interface SupersedeMemoryInput {
   old_id: string
   content: string
   type: string
-  scope?: 'global' | 'project'
   tags?: string[]
   salience?: number
 }
 
 export async function supersedeMemoryTool(input: SupersedeMemoryInput, context: McpToolContext) {
-  const scope = input.scope ?? 'project'
-  const basePath = resolveMemoryPath(context, scope)
+  const basePath = resolveMemoryPath(context)
 
   return supersedeMemory(basePath, input.old_id, {
     content: input.content,
     type: assertMemoryType(input.type),
-    scope: assertMemoryScope(scope),
+    scope: 'project',
     tags: input.tags ?? [],
     source: 'mcp',
     salience: input.salience ?? 0.5,
@@ -314,24 +291,22 @@ export async function supersedeMemoryTool(input: SupersedeMemoryInput, context: 
 
 export interface GetSupersessionChainInput {
   memory_id: string
-  scope?: 'global' | 'project'
 }
 
 export async function getSupersessionChainTool(
   input: GetSupersessionChainInput,
   context: McpToolContext
 ) {
-  const basePath = resolveMemoryPath(context, input.scope)
+  const basePath = resolveMemoryPath(context)
   return getSupersessionChain(basePath, input.memory_id)
 }
 
 export interface GetLatestVersionInput {
   memory_id: string
-  scope?: 'global' | 'project'
 }
 
 export async function getLatestVersionTool(input: GetLatestVersionInput, context: McpToolContext) {
-  const basePath = resolveMemoryPath(context, input.scope)
+  const basePath = resolveMemoryPath(context)
   return getLatestVersion(basePath, input.memory_id)
 }
 
@@ -340,35 +315,33 @@ export interface HandoffBeginInput {
   agent_from?: string
   open_questions?: string[]
   next_steps?: string[]
-  scope?: 'global' | 'project'
 }
 
 export async function handoffBeginTool(input: HandoffBeginInput, context: McpToolContext) {
-  const basePath = resolveMemoryPath(context, input.scope)
+  const basePath = resolveMemoryPath(context)
   return beginHandoff(
     basePath,
     input.summary,
     input.agent_from,
     input.open_questions,
     input.next_steps,
-    resolveMemoryPath(context, 'project')
+    resolveMemoryPath(context)
   )
 }
 
 export interface HandoffAcceptInput {
   handoff_id?: string
   agent_to?: string
-  scope?: 'global' | 'project'
 }
 
 export async function handoffAcceptTool(input: HandoffAcceptInput, context: McpToolContext) {
-  const basePath = resolveMemoryPath(context, input.scope)
+  const basePath = resolveMemoryPath(context)
 
   if (input.handoff_id) {
     return acceptHandoff(basePath, input.handoff_id, input.agent_to)
   }
 
-  const openHandoff = await getOpenHandoff(basePath, resolveMemoryPath(context, 'project'))
+  const openHandoff = await getOpenHandoff(basePath, resolveMemoryPath(context))
   if (!openHandoff) {
     return null
   }
@@ -383,11 +356,10 @@ export interface ForgetSweepInput {
   cold_threshold?: number
   hard_delete_after_days?: number
   dry_run?: boolean
-  scope?: 'global' | 'project'
 }
 
 export async function forgetSweepTool(input: ForgetSweepInput, context: McpToolContext) {
-  const basePath = resolveMemoryPath(context, input.scope)
+  const basePath = resolveMemoryPath(context)
 
   const config: DecayConfig = {
     lambda: input.lambda ?? 0.02,
@@ -405,11 +377,10 @@ export interface RecordHookEventInput {
   agent?: string
   session_id?: string
   data?: Record<string, unknown>
-  scope?: 'global' | 'project'
 }
 
 export async function recordHookEventTool(input: RecordHookEventInput, context: McpToolContext) {
-  const basePath = resolveMemoryPath(context, input.scope)
+  const basePath = resolveMemoryPath(context)
 
   return recordHookEvent(basePath, {
     type: input.type,

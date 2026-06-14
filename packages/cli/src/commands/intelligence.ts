@@ -7,7 +7,6 @@ import {
   buildKnowledgeGraph,
   deferRecommendation,
   generateRecommendations,
-  getGlobalMemoryPath,
   getProjectMemoryPath,
   listRecommendations,
   rejectRecommendation,
@@ -29,7 +28,6 @@ export function registerIntelligenceCommand(program: Command) {
   intelligence
     .command('recommend')
     .description('Generate reviewable AI maintenance recommendations')
-    .option('--project', 'Use project memory instead of global')
     .option('--json', 'Print JSON')
     .action(async (options: StoreOptions) => {
       const report = await generateRecommendations(resolveBasePath(options))
@@ -41,7 +39,6 @@ export function registerIntelligenceCommand(program: Command) {
   intelligence
     .command('list')
     .description('List stored recommendations')
-    .option('--project', 'Use project memory instead of global')
     .option('--json', 'Print JSON')
     .action(async (options: StoreOptions) => {
       const recommendations = await listRecommendations(resolveBasePath(options))
@@ -52,7 +49,6 @@ export function registerIntelligenceCommand(program: Command) {
   intelligence
     .command('apply <id>')
     .description('Accept and apply a recommendation')
-    .option('--project', 'Use project memory instead of global')
     .option('--confirm-physical-delete', 'Allow a physical delete recommendation to delete files')
     .option('--json', 'Print JSON')
     .action(async (id, options: StoreOptions & { confirmPhysicalDelete?: boolean }) => {
@@ -67,7 +63,6 @@ export function registerIntelligenceCommand(program: Command) {
   intelligence
     .command('reject <id>')
     .description('Reject a recommendation so it does not immediately reappear')
-    .option('--project', 'Use project memory instead of global')
     .action(async (id, options: StoreOptions) => {
       const recommendation = await rejectRecommendation(resolveBasePath(options), id)
       if (!recommendation) {
@@ -80,7 +75,6 @@ export function registerIntelligenceCommand(program: Command) {
   intelligence
     .command('defer <id>')
     .description('Defer a recommendation')
-    .option('--project', 'Use project memory instead of global')
     .action(async (id, options: StoreOptions) => {
       const recommendation = await deferRecommendation(resolveBasePath(options), id)
       if (!recommendation) {
@@ -93,7 +87,6 @@ export function registerIntelligenceCommand(program: Command) {
   intelligence
     .command('cleanup')
     .description('Preview grouped cleanup recommendations')
-    .option('--project', 'Use project memory instead of global')
     .option('--json', 'Print JSON')
     .action(async (options: StoreOptions) => {
       const cleanup = await analyzeCleanup(resolveBasePath(options))
@@ -111,7 +104,6 @@ export function registerIntelligenceCommand(program: Command) {
   intelligence
     .command('distill')
     .description('Preview distillation proposals, or create proposed memories with --apply')
-    .option('--project', 'Use project memory instead of global')
     .option('--apply', 'Create proposed distilled memories')
     .option('--json', 'Print JSON')
     .action(async (options: StoreOptions & { apply?: boolean }) => {
@@ -133,7 +125,6 @@ export function registerIntelligenceCommand(program: Command) {
   intelligence
     .command('graph')
     .description('Preview the Knowledge Graph with typed evidence-backed relations')
-    .option('--project', 'Use project memory instead of global')
     .option('--json', 'Print JSON')
     .action(async (options: StoreOptions) => {
       const graph = await buildKnowledgeGraph(resolveBasePath(options))
@@ -151,7 +142,6 @@ export function registerIntelligenceCommand(program: Command) {
   intelligence
     .command('seed-eval')
     .description('Create the shared intelligence evaluation dataset')
-    .option('--project', 'Use project memory instead of global')
     .option('--json', 'Print JSON')
     .action(async (options: StoreOptions) => {
       const result = await seedIntelligenceEvaluationDataset(resolveBasePath(options))
@@ -164,7 +154,8 @@ export function registerIntelligenceCommand(program: Command) {
 }
 
 function resolveBasePath(options: StoreOptions): string {
-  return options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+  void options
+  return getProjectMemoryPath(process.cwd())
 }
 
 function printRecommendations(recommendations: MemoryRecommendation[], indent = ''): void {

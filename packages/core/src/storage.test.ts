@@ -62,7 +62,7 @@ describe('storage', () => {
 
       const created = await createMemory(basePath, {
         type: 'knowledge',
-        scope: 'global',
+        scope: 'project',
         content: 'Test knowledge',
       })
 
@@ -84,7 +84,7 @@ describe('storage', () => {
 
       const created = await createMemory(basePath, {
         type: 'knowledge',
-        scope: 'global',
+        scope: 'project',
         content: 'Original content',
       })
 
@@ -104,7 +104,7 @@ describe('storage', () => {
 
       const created = await createMemory(basePath, {
         type: 'knowledge',
-        scope: 'global',
+        scope: 'project',
         content: 'To be deleted',
       })
 

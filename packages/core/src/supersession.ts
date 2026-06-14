@@ -163,7 +163,6 @@ function getSubdirForType(type: string): string {
     mistake: 'mistakes',
     pattern: 'patterns',
     preference: 'preferences',
-    project: 'projects',
     session: 'sessions',
     task: 'tasks',
     rule: 'rules',

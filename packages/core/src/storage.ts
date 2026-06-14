@@ -1,6 +1,5 @@
 import { mkdir, readFile, writeFile, readdir, stat, rm } from 'node:fs/promises'
 import { join, dirname, parse } from 'node:path'
-import { homedir } from 'node:os'
 import { existsSync } from 'node:fs'
 import { parseMarkdown, serializeMarkdown } from './markdown.js'
 import { generateId } from './id.js'
@@ -11,30 +10,13 @@ import {
   assertMemoryStatus,
   assertMemoryType,
   assertSalience,
+  normalizeStoredMemoryScope,
   type CreateMemoryInput,
   type Memory,
   type UpdateMemoryInput,
 } from './types.js'
 
-export const GLOBAL_MEMORY_DIR = '.ai-memory'
 export const PROJECT_MEMORY_DIR = '.ai-memory'
-
-export const GLOBAL_SUBDIRS = [
-  'identity',
-  'preferences',
-  'knowledge',
-  'decisions',
-  'patterns',
-  'mistakes',
-  'projects',
-  'control',
-  'exports',
-  'docs',
-] as const
-
-export function getGlobalMemoryPath(): string {
-  return join(homedir(), 'ai-memory')
-}
 
 export function findMemoryBase(startPath: string): string | null {
   let currentPath = startPath
@@ -54,18 +36,6 @@ export function findMemoryBase(startPath: string): string | null {
 export function getProjectMemoryPath(projectPath: string): string {
   const existing = findMemoryBase(projectPath)
   return existing ?? join(projectPath, PROJECT_MEMORY_DIR)
-}
-
-export async function initGlobalMemory(): Promise<string> {
-  const basePath = getGlobalMemoryPath()
-
-  await mkdir(basePath, { recursive: true })
-
-  for (const subdir of GLOBAL_SUBDIRS) {
-    await mkdir(join(basePath, subdir), { recursive: true })
-  }
-
-  return basePath
 }
 
 export async function initProjectMemory(projectPath: string): Promise<string> {
@@ -209,12 +179,17 @@ export async function updateMemory(
   }
   if (input.scope !== undefined) {
     memory.metadata.scope = assertMemoryScope(input.scope)
+  } else {
+    memory.metadata.scope = normalizeStoredMemoryScope(memory.metadata.scope)
   }
   if (input.status !== undefined) {
     memory.metadata.status = assertMemoryStatus(input.status)
   }
   if (input.source_ids !== undefined) {
     memory.metadata.source_ids = input.source_ids
+  }
+  if (input.superseded_by !== undefined) {
+    memory.metadata.superseded_by = input.superseded_by
   }
 
   memory.metadata.updated_at = new Date().toISOString()
@@ -403,7 +378,6 @@ function getSubdirForType(type: string): string {
     mistake: 'mistakes',
     pattern: 'patterns',
     preference: 'preferences',
-    project: 'projects',
     session: 'sessions',
     task: 'tasks',
     rule: 'rules',

@@ -1,6 +1,5 @@
 import { Command } from 'commander'
-import { findMemoryBase, getGlobalMemoryPath, listMemories } from 'pamh-core'
-import { existsSync } from 'node:fs'
+import { findMemoryBase, getProjectMemoryPath, listMemories } from 'pamh-core'
 
 export function registerStatusCommand(program: Command) {
   program
@@ -8,11 +7,9 @@ export function registerStatusCommand(program: Command) {
     .description('Show current memory status')
     .action(async () => {
       const cwd = process.cwd()
-      const memoryPath = findMemoryBase(cwd)
-      const globalPath = getGlobalMemoryPath()
+      const memoryPath = findMemoryBase(cwd) ?? getProjectMemoryPath(cwd)
 
       console.log(`Using memory: ${memoryPath ?? 'none'}`)
-      console.log(`Global memory: ${existsSync(globalPath) ? globalPath : 'not initialized'}`)
 
       if (memoryPath) {
         const memories = await listMemories(memoryPath)

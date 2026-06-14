@@ -40,31 +40,15 @@ Supported types:
 - `session`
 - `task`
 - `client`
-- `project`
 - `pattern`
 
-## Memory Scopes
+## Memory Scope
 
-Supported scopes:
+PAMH is project-only. Runtime clients do not choose a scope, and all new memory
+belongs to the current project store.
 
-- `global`
-- `project`
-- `client`
-- `stack`
-- `temporary`
-- `archived`
-
-## Global Memory
-
-Global memory is shared across projects and tools.
-
-Default path:
-
-```text
-~/ai-memory
-```
-
-Use it for preferences, broad knowledge, patterns, and reusable decisions.
+Older Markdown files may still contain legacy scope values. PAMH normalizes
+those values to `project` when memories are read or imported.
 
 ## Project Memory
 
@@ -88,9 +72,9 @@ When you initialize memory in a parent directory, all subdirectories automatical
 
 ```text
 ~/projects/my-app/
-  ├── .ai-memory/              ← Initialize here
-  ├── backend/                 ← Uses parent memory
-  └── frontend/                ← Uses parent memory
+  |-- .ai-memory/              <- Initialize here
+  |-- backend/                 <- Uses parent memory
+  `-- frontend/                <- Uses parent memory
 ```
 
 ```bash
@@ -99,11 +83,11 @@ memory init
 
 cd backend
 memory add -t decision -c "Use PostgreSQL for the main database"
-# → Stored in ~/projects/my-app/.ai-memory/
+# -> Stored in ~/projects/my-app/.ai-memory/
 
 cd ../frontend
 memory list
-# → Shows the same memory
+# -> Shows the same memory
 ```
 
 ### Isolated Memory
@@ -112,17 +96,17 @@ When you initialize memory in a specific subdirectory, that project gets its own
 
 ```text
 ~/projects/my-app/
-  ├── backend/
-  │   └── .ai-memory/          ← Initialize here for isolated memory
-  └── frontend/
-      └── .ai-memory/          ← Initialize here for isolated memory
+  |-- backend/
+  |   `-- .ai-memory/          <- Initialize here for isolated memory
+  `-- frontend/
+      `-- .ai-memory/          <- Initialize here for isolated memory
 ```
 
 ```bash
 cd ~/projects/my-app/backend
 memory init
-# → Creates ~/projects/my-app/backend/.ai-memory/
-# → This project now has its own isolated memory
+# -> Creates ~/projects/my-app/backend/.ai-memory/
+# -> This project now has its own isolated memory
 ```
 
 ### Checking Which Memory Is Used
@@ -132,7 +116,6 @@ Use `memory status` to see which memory directory is currently active:
 ```bash
 memory status
 # Using memory: ~/projects/my-app/.ai-memory/
-# Global memory: ~/ai-memory/
 # Memories: 12 active, 3 proposed, 1 archived
 ```
 
@@ -140,10 +123,12 @@ memory status
 
 Compiled context combines memory sources in this order:
 
-1. Global memory
-2. Project memory
-3. Linked projects
-4. Search results
+1. Project memory
+2. Search results
+
+The UI Concepts map is derived from the same composed source set as the LLM
+context preview, so it shows concepts that structure the context the LLM would
+actually receive rather than every visible memory in the store.
 
 Use:
 

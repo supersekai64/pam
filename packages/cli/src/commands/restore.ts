@@ -1,13 +1,12 @@
 import { Command } from 'commander'
-import { restoreMemory, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
+import { restoreMemory, getProjectMemoryPath } from 'pamh-core'
 
 export function registerRestoreCommand(program: Command) {
   program
     .command('restore <id>')
     .description('Restore a deleted memory')
-    .option('--project', 'Use project memory instead of global')
-    .action(async (id, options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+    .action(async (id) => {
+      const basePath = getProjectMemoryPath(process.cwd())
 
       const restored = await restoreMemory(basePath, id)
 

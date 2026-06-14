@@ -1,13 +1,12 @@
 import { Command } from 'commander'
-import { archiveMemory, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
+import { archiveMemory, getProjectMemoryPath } from 'pamh-core'
 
 export function registerArchiveCommand(program: Command) {
   program
     .command('archive <id>')
     .description('Archive a memory')
-    .option('--project', 'Use project memory instead of global')
-    .action(async (id, options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+    .action(async (id) => {
+      const basePath = getProjectMemoryPath(process.cwd())
 
       const archived = await archiveMemory(basePath, id)
 

@@ -6,8 +6,7 @@ PAMH is local-first. Memory is stored on disk, owned by the user, and designed t
 
 - Markdown is the source of truth.
 - SQLite is an index and can be rebuilt.
-- Global memory defaults to `~/ai-memory`.
-- Project memory defaults to `./.ai-memory`.
+- Project memory defaults to `./.ai-memory` or the nearest parent `.ai-memory`.
 
 ## Sensitive Data
 
@@ -66,4 +65,4 @@ Physical deletion is intentionally not part of the MVP default path.
 
 The MCP server runs over stdio and uses the current working directory as the project root.
 
-Before enabling PAMH in an MCP client, review what memory paths are available to that client.
+Before enabling PAMH in an MCP client, review which project directory that client starts from.

@@ -36,18 +36,18 @@ memory init --no-integrations
 memory server start
 ```
 
-The server uses the current working directory as the project root. Project memory is resolved from `./.ai-memory`; global memory is resolved from `~/ai-memory`.
+The server uses the current working directory as the project root. Project memory is resolved from `./.ai-memory` or the nearest parent `.ai-memory`.
 
 ## Available Tools
 
-- `search_memory` - Search memories by text, type, tag, and scope
+- `search_memory` - Search project memories by text, type, and tag
 - `get_memory` - Get a memory by ID
 - `add_memory` - Add a new memory
 - `memory_checkpoint` - Submit durable session learnings as one structured checkpoint
 - `edit_memory` - Edit an existing memory
 - `delete_memory` - Logically delete a memory
 - `list_projects` - List current and linked projects
-- `compile_context` - Compile global, project, linked, and search context
+- `compile_context` - Compile project and search context
 - `supersede_memory` - Create a new memory that supersedes an outdated one
 - `get_supersession_chain` - Return all versions in a supersession chain
 - `get_latest_version` - Resolve a memory to its latest version
@@ -60,7 +60,7 @@ The server uses the current working directory as the project root. Project memor
 - `preview_knowledge_graph` - Preview typed Knowledge Graph entities and relations
 - `apply_memory_recommendation` - Apply one reviewed recommendation by ID
 
-`add_memory` accepts `content`, `type`, optional `scope`, `tags`, and `salience`. Use `supersede_memory` instead of `add_memory` when a new memory replaces an existing one, so both sides of the supersession chain are maintained.
+`add_memory` accepts `content`, `type`, optional `tags`, and `salience`. PAMH is project-only, so MCP clients do not provide a scope. Use `supersede_memory` instead of `add_memory` when a new memory replaces an existing one, so both sides of the supersession chain are maintained.
 
 `memory_checkpoint` is preferred for automatic capture. Agents can submit a short task summary plus decisions, facts, preferences, mistakes, and follow-up tasks. PAMH applies the configured capture mode: `manual` records an observation only, `assisted` creates proposed memories, and `auto` creates active memories.
 
@@ -108,7 +108,7 @@ When you make a durable project decision, learn a reusable fact, or finish a mea
 Example manual fallback:
 
 ```bash
-memory add --project -t session -s project --tags "opencode,setup" -c "Initialized a React project with Tailwind and shadcn components."
+memory add -t session --tags "opencode,setup" -c "Initialized a React project with Tailwind and shadcn components."
 ```
 
 ## Supersession And Decay

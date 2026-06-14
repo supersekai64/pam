@@ -6,15 +6,14 @@ PAMH lets you maintain user-controlled memory that works across multiple LLMs, I
 
 ## Why PAMH?
 
-AI assistants are becoming part of everyday development workflows, but their memory is usually fragmented, vendor-specific, and hard to control. Context gets lost between tools, projects, sessions, and models. Important decisions have to be repeated, agent behavior is difficult to audit, and switching tools often means starting from scratch.
+AI memory is often trapped inside one chat, IDE, vendor, or session.
 
-PAMH was built to make AI memory portable, inspectable, and user-owned.
+PAMH gives your tools a shared, local memory store that you control. Memories
+live as project files, can be inspected and edited, and are exposed through the
+same CLI, MCP, API, and UI surfaces.
 
-There are already strong projects exploring this space, which focuses on long-term memory and handoff for coding agents. PAMH exists for a slightly different reason: we wanted a lightweight, npm-installable memory layer that can be adopted quickly, works locally by default, keeps the user in control of what becomes permanent memory, and exposes the same memory through CLI, MCP, API, and UI surfaces.
-
-In other words, PAMH is not trying to replace every AI memory system. It focuses on being a simple, portable memory hub that can sit beside your existing tools and give them a shared source of truth.
-
-Instead of storing knowledge inside a single chat product or IDE, PAMH keeps memory in your project or home directory, using local files as the source of truth. Any compatible agent can read from the same memory, propose updates, and reuse context across sessions.
+Any compatible agent can read the same context, propose updates, and reuse
+project knowledge across sessions.
 
 Key advantages:
 
@@ -111,7 +110,7 @@ memory ui --open
 You can also add memories manually:
 
 ```bash
-memory add -t decision -s project -c "Use PostgreSQL for the main database"
+memory add -t decision -c "Use PostgreSQL for the main database"
 memory list
 memory search "database"
 ```
@@ -160,18 +159,11 @@ memory init
 # → Creates isolated memory for this project only
 ```
 
-### Global Memory
-
-```bash
-memory init global
-# → Creates ~/ai-memory/ for cross-project preferences
-```
-
 ## Features
 
 - Human-readable Markdown memory storage
 - SQLite + FTS5 indexing
-- Text, tag, and scope search
+- Text, tag, and project-memory search
 - Semantic search with local or OpenAI embeddings
 - Export/import in ZIP, JSON, Markdown, and SQLite formats
 - Basic secret redaction

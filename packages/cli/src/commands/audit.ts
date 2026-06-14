@@ -1,13 +1,12 @@
 import { Command } from 'commander'
-import { listMemories, MemoryIndex, getGlobalMemoryPath, getProjectMemoryPath } from 'pamh-core'
+import { listMemories, MemoryIndex, getProjectMemoryPath } from 'pamh-core'
 
 export function registerAuditCommand(program: Command) {
   program
     .command('audit')
     .description('Display memory statistics and audit information')
-    .option('--project', 'Use project memory instead of global')
-    .action(async (options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+    .action(async () => {
+      const basePath = getProjectMemoryPath(process.cwd())
 
       const memories = await listMemories(basePath)
 

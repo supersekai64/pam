@@ -3,10 +3,8 @@ import {
   supersedeMemory,
   getSupersessionChain,
   getLatestVersion,
-  getGlobalMemoryPath,
   getProjectMemoryPath,
   assertMemoryType,
-  assertMemoryScope,
   assertSalience,
 } from 'pamh-core'
 
@@ -17,22 +15,18 @@ export function registerSupersedeCommand(program: Command) {
     .command('create <old_id>')
     .description('Create a new memory that supersedes an existing one')
     .option('-t, --type <type>', 'Memory type (required)')
-    .option('-s, --scope <scope>', 'Memory scope')
     .option('-c, --content <content>', 'Memory content (required)')
     .option('--tags <tags>', 'Comma-separated tags')
     .option('--salience <salience>', 'Importance score (0-1)', '0.5')
-    .option('--project', 'Use project memory instead of global')
     .action(async (oldId, options) => {
       if (!options.type || !options.content) {
         console.error('Error: --type and --content are required')
         process.exit(1)
       }
 
-      const useProject = options.project || options.scope === 'project'
-      const basePath = useProject ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+      const basePath = getProjectMemoryPath(process.cwd())
 
       const type = assertMemoryType(options.type)
-      const scope = assertMemoryScope(options.scope ?? (useProject ? 'project' : 'global'))
       const tags = options.tags ? options.tags.split(',').map((t: string) => t.trim()) : []
       let salience: number
       try {
@@ -44,7 +38,7 @@ export function registerSupersedeCommand(program: Command) {
 
       const result = await supersedeMemory(basePath, oldId, {
         type,
-        scope,
+        scope: 'project',
         content: options.content,
         tags,
         salience,
@@ -64,9 +58,8 @@ export function registerSupersedeCommand(program: Command) {
   supersede
     .command('chain <memory_id>')
     .description('Show the supersession chain for a memory')
-    .option('--project', 'Use project memory instead of global')
-    .action(async (memoryId, options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+    .action(async (memoryId) => {
+      const basePath = getProjectMemoryPath(process.cwd())
 
       const chain = await getSupersessionChain(basePath, memoryId)
 
@@ -88,9 +81,8 @@ export function registerSupersedeCommand(program: Command) {
   supersede
     .command('latest <memory_id>')
     .description('Get the latest version of a memory')
-    .option('--project', 'Use project memory instead of global')
-    .action(async (memoryId, options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+    .action(async (memoryId) => {
+      const basePath = getProjectMemoryPath(process.cwd())
 
       const latest = await getLatestVersion(basePath, memoryId)
 

@@ -1,10 +1,5 @@
 import { Command } from 'commander'
-import {
-  checkIndexConsistency,
-  MemoryIndex,
-  getGlobalMemoryPath,
-  getProjectMemoryPath,
-} from 'pamh-core'
+import { checkIndexConsistency, MemoryIndex, getProjectMemoryPath } from 'pamh-core'
 
 export function registerDoctorCommand(program: Command) {
   const doctor = program.command('doctor').description('Diagnose memory system health')
@@ -12,9 +7,8 @@ export function registerDoctorCommand(program: Command) {
   doctor
     .command('check')
     .description('Check consistency between Markdown files and SQLite index')
-    .option('--project', 'Use project memory instead of global')
-    .action(async (options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+    .action(async () => {
+      const basePath = getProjectMemoryPath(process.cwd())
 
       console.log('Checking index consistency...')
       const report = await checkIndexConsistency(basePath)
@@ -44,9 +38,8 @@ export function registerDoctorCommand(program: Command) {
   doctor
     .command('stats')
     .description('Show memory statistics')
-    .option('--project', 'Use project memory instead of global')
-    .action((options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+    .action(() => {
+      const basePath = getProjectMemoryPath(process.cwd())
 
       const index = new MemoryIndex(basePath)
       const stats = index.getStats()

@@ -9,6 +9,7 @@ import {
   createMemory,
   generateRecommendations,
   initProjectMemory,
+  preferContradictionRecommendation,
   readMemory,
   seedIntelligenceEvaluationDataset,
 } from './index.js'
@@ -73,7 +74,7 @@ describe('intelligence layer', () => {
     })
     await createMemory(memoryPath, {
       type: 'session',
-      scope: 'temporary',
+      scope: 'project',
       status: 'active',
       tags: ['generated-test-fragment'],
       content: 'tmp log',
@@ -85,6 +86,47 @@ describe('intelligence layer', () => {
     const graph = await buildKnowledgeGraph(memoryPath)
     expect(graph.relations.some((relation) => relation.type === 'uses')).toBe(true)
     expect(graph.relations.every((relation) => relation.evidence_ids.length > 0)).toBe(true)
+  })
+
+  it('resolves contradiction recommendations by preferring one memory', async () => {
+    const left = await createMemory(memoryPath, {
+      type: 'decision',
+      scope: 'project',
+      status: 'active',
+      tags: ['capture-mode'],
+      content: 'Capture mode should allow automatic memory capture for project decisions.',
+    })
+    const right = await createMemory(memoryPath, {
+      type: 'decision',
+      scope: 'project',
+      status: 'active',
+      tags: ['capture-mode'],
+      content: 'Capture mode should deny automatic memory capture for project decisions.',
+    })
+
+    const report = await generateRecommendations(memoryPath)
+    const recommendation = report.recommendations.find(
+      (item) =>
+        item.type === 'contradiction' &&
+        item.evidence_ids.includes(left.metadata.id) &&
+        item.evidence_ids.includes(right.metadata.id)
+    )
+
+    expect(recommendation).toBeDefined()
+
+    const result = await preferContradictionRecommendation(
+      memoryPath,
+      recommendation!.id,
+      right.metadata.id
+    )
+    const preferred = await readMemory(memoryPath, right.metadata.id)
+    const archived = await readMemory(memoryPath, left.metadata.id)
+
+    expect(result.recommendation.status).toBe('accepted')
+    expect(preferred?.metadata.status).toBe('active')
+    expect(archived?.metadata.status).toBe('archived')
+    expect(archived?.metadata.superseded_by).toBe(right.metadata.id)
+    expect(archived?.metadata.tags).toContain('pamh-contradiction-resolved')
   })
 
   it('seeds the shared evaluation dataset', async () => {

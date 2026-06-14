@@ -101,8 +101,8 @@ describe('integrations', () => {
 
     const agents = await readFile(join(tempDir, 'AGENTS.md'), 'utf-8')
 
-    expect(agents).toContain('Before final response')
-    expect(agents).toContain('user corrects you')
+    expect(agents).toContain('Before your final response')
+    expect(agents).toContain('User corrects you')
     expect(agents).toContain('memory_checkpoint')
     expect(agents).toContain('update relevant documentation')
   })

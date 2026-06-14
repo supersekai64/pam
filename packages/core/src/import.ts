@@ -4,7 +4,12 @@ import AdmZip from 'adm-zip'
 import { parseMarkdown, serializeMarkdown } from './markdown.js'
 import { generateId } from './id.js'
 import { MemoryIndex } from './indexer.js'
-import { assertMemoryScope, assertMemoryStatus, assertMemoryType, type Memory } from './types.js'
+import {
+  assertMemoryStatus,
+  normalizeStoredMemoryScope,
+  normalizeStoredMemoryType,
+  type Memory,
+} from './types.js'
 
 export type ImportFormat = 'json' | 'zip' | 'markdown'
 
@@ -74,8 +79,8 @@ async function importFromJson(inputPath: string, basePath: string): Promise<Impo
       const memory: Memory = {
         metadata: {
           id: item.metadata?.id || generateId(),
-          type: assertMemoryType(item.metadata?.type || 'knowledge'),
-          scope: assertMemoryScope(item.metadata?.scope || 'global'),
+          type: normalizeStoredMemoryType(item.metadata?.type || 'knowledge'),
+          scope: normalizeStoredMemoryScope(item.metadata?.scope),
           status: assertMemoryStatus(item.metadata?.status || 'active'),
           created_at: item.metadata?.created_at || new Date().toISOString(),
           updated_at: item.metadata?.updated_at || new Date().toISOString(),
@@ -149,7 +154,6 @@ function getSubdirForType(type: string): string {
     mistake: 'mistakes',
     pattern: 'patterns',
     preference: 'preferences',
-    project: 'projects',
     session: 'sessions',
     task: 'tasks',
     rule: 'rules',

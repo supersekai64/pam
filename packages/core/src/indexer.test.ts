@@ -107,12 +107,6 @@ describe('MemoryIndex', () => {
   it('should search by scope', async () => {
     await createMemory(basePath, {
       type: 'knowledge',
-      scope: 'global',
-      content: 'Global knowledge',
-    })
-
-    await createMemory(basePath, {
-      type: 'knowledge',
       scope: 'project',
       content: 'Project knowledge',
     })

@@ -7,7 +7,6 @@ import {
   Check,
   Circle,
   Database,
-  Eye,
   FileText,
   GitBranch,
   ListFilter,
@@ -40,7 +39,7 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import { TooltipProvider } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 type Store = 'project'
@@ -117,6 +116,17 @@ interface ApiConceptSample {
   content: string
 }
 
+interface ContextSource extends ApiConceptSample {
+  section: string
+  reasons: string[]
+}
+
+interface ContextExclusion {
+  id: string
+  type: string
+  reason: string
+}
+
 interface ApiConceptNode {
   id: string
   title: string
@@ -147,15 +157,17 @@ interface ApiConceptGraph {
   calculation: string
   concepts: ApiConceptNode[]
   edges: ApiConceptEdge[]
+  exclusions: ContextExclusion[]
 }
 
 interface ContextPreview {
   content: string
   tokenEstimate: number
   memoryCount: number
-  sources: ApiConceptSample[]
+  sources: ContextSource[]
   topConcepts: Array<{ title: string; occurrences: number; score: number }>
   generatedAt: string
+  exclusions: ContextExclusion[]
 }
 
 interface MemoryRecommendation {
@@ -166,6 +178,16 @@ interface MemoryRecommendation {
   explanation: string
   evidence_ids: string[]
   action?: string
+  payload?: {
+    source_ids?: string[]
+    target_id?: string
+    replacement_id?: string
+    left_id?: string
+    right_id?: string
+    concept?: string
+    count?: number
+    compression_ratio?: number
+  }
 }
 
 interface RecommendationsResponse {
@@ -177,17 +199,6 @@ interface RecommendationsResponse {
     source_preservation_rate: number
     top_concept_count: number
   }
-}
-
-interface DistillationProposal {
-  id: string
-  concept: string
-  type: string
-  tags: string[]
-  source_ids: string[]
-  source_count: number
-  compression_ratio: number
-  reason: string
 }
 
 interface KnowledgeEntity {
@@ -251,10 +262,9 @@ const memoryTypes = [
   'session',
   'task',
   'client',
-  'project',
   'pattern',
 ]
-const memoryScopes = ['global', 'project', 'client', 'stack', 'temporary', 'archived']
+const memoryTypePriority = new Map(memoryTypes.map((type, index) => [type, index]))
 const statuses = ['active', 'all', 'proposed', 'archived', 'deleted', 'noise']
 
 const navItems: Array<{ icon: LucideIcon; label: string; view: WorkspaceView }> = [
@@ -264,6 +274,99 @@ const navItems: Array<{ icon: LucideIcon; label: string; view: WorkspaceView }> 
   { icon: FileText, label: 'LLM context', view: 'context' },
   { icon: Shield, label: 'Governance', view: 'governance' },
 ]
+
+const navHints: Record<WorkspaceView, string> = {
+  map: 'Force-directed map of the strongest concepts (tags + keywords) extracted from the current LLM context. Click a node to focus its evidence.',
+  knowledge:
+    'Typed graph of entities and relations inferred across memories (decisions, components, people, etc.) with evidence links.',
+  evidence:
+    'Filterable list of individual memories that back the current view. This is where you read, edit, approve, archive or delete records.',
+  context:
+    'Exact text the LLM would receive as project memory right now, with token estimate and the contributing sources.',
+  governance:
+    'Hygiene controls: noise visibility, distillation proposals, and assisted recommendations to keep the memory store clean.',
+}
+
+const statusHints: Record<string, string> = {
+  Active: 'Approved, durable memories that are loaded into the LLM context.',
+  Proposed:
+    'Memories captured automatically or by an agent. They need your approval before becoming Active.',
+  Archived:
+    'Memories kept for history but excluded from the LLM context. Can be restored at any time.',
+  Noise: 'Marked irrelevant. Hidden from the working map and the LLM context, but kept for audit.',
+  Deleted: 'Soft-deleted memories. Restorable until you run a physical delete.',
+  all: 'Show every status (active, proposed, archived, noise, deleted) in the evidence list.',
+  active: 'Default view: only approved memories loaded into the LLM context.',
+  proposed: 'Awaiting your approval before joining the LLM context.',
+  archived: 'Excluded from the LLM context but kept for history.',
+  noise: 'Marked irrelevant. Hidden from the LLM context.',
+  deleted: 'Soft-deleted. Still restorable.',
+}
+
+const typeHints: Record<string, string> = {
+  decision: 'A technical choice made for the project (library, pattern, schema, protocol).',
+  knowledge: 'A reusable fact, constraint or gotcha about the codebase.',
+  mistake: 'A lesson learned from an error or regression — used to avoid repeating it.',
+  rule: 'A durable workflow requirement ("always …", "never …").',
+  preference: 'A stylistic, UX, naming or architectural choice that should apply broadly.',
+  session: 'A short summary of completed work.',
+  task: 'Follow-up work identified but not done yet.',
+  client: 'Memory scoped to a specific client / customer.',
+  pattern: 'A recurring pattern observed in code or workflow.',
+}
+
+const conceptHints = {
+  llmCandidates: 'Active memories that would be included in the LLM context window right now.',
+  strongConcepts:
+    'Tags and keywords that recur across the current LLM context. They are the backbone of the concepts map.',
+  evidenceSet:
+    'Memories matching the current search query and status filter — what you would inspect or edit.',
+  excludedNoise:
+    'Memories marked as Noise. Hidden from the LLM and the map, but still stored for audit.',
+  focusedConcept:
+    'A concept you clicked in the map. The Evidence and Context views become filtered to it.',
+  consolidate:
+    'Promote this concept into a distilled "knowledge" memory that summarizes its evidence.',
+  markNoise:
+    'Tell PAMH this concept (or memory) is irrelevant. It will be hidden from future LLM context.',
+  contextPreview:
+    'The exact block of text that would be sent to the LLM as project memory right now.',
+  tokenEstimate: 'Approximate token count of the current context block (rough heuristic).',
+  approve: 'Promote this proposed memory to Active so the LLM can use it.',
+  reject: 'Discard this proposed memory. It will be soft-deleted.',
+  archive: 'Remove from the LLM context but keep for history. Restorable.',
+  restore: 'Bring this memory back to Active so the LLM can use it again.',
+  softDelete: 'Mark as deleted. Hidden everywhere but still restorable.',
+  physicalDelete: 'Permanently remove the file from disk. This cannot be undone.',
+  save: 'Save your edits to the memory content, type and tags.',
+  distillation:
+    'Group of related memories that could be merged into a single, denser "knowledge" memory.',
+  recommendation:
+    'Assisted suggestion produced by PAMH based on your current store (merges, deletions, promotions).',
+  showNoise: 'Toggle visibility of memories marked as noise across the whole console.',
+  knowledgeGraph:
+    'Typed relations (decision → component, person → owns → module, etc.) extracted across memories.',
+  copyContext: 'Copy the LLM context block to the clipboard.',
+}
+
+function Hint({
+  children,
+  label,
+  side = 'top',
+}: {
+  children: ReactNode
+  label: ReactNode
+  side?: 'top' | 'right' | 'bottom' | 'left'
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent className="max-w-xs text-left leading-5" side={side}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
 
 function App() {
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>('map')
@@ -282,13 +385,14 @@ function App() {
   const [contextPreview, setContextPreview] = useState<ContextPreview | null>(null)
   const [statsResponse, setStatsResponse] = useState<StatsResponse | null>(null)
   const [recommendations, setRecommendations] = useState<RecommendationsResponse | null>(null)
-  const [distillation, setDistillation] = useState<DistillationProposal[]>([])
   const [knowledgeGraph, setKnowledgeGraph] = useState<KnowledgeGraphResponse | null>(null)
+  const [memoryDirectory, setMemoryDirectory] = useState<Map<string, Memory | SearchResult>>(
+    () => new Map()
+  )
   const [message, setMessage] = useState('')
 
   const conceptLimit = conceptDepth === 'top' ? 20 : 100
   const activeConcept = getActiveConcept(conceptGraph, focusedConcept)
-  const suggestedTags = getSuggestedTags(conceptGraph, focusedConcept)
 
   const loadStats = useCallback(async () => {
     const params = new URLSearchParams({
@@ -318,10 +422,13 @@ function App() {
       store: PROJECT_STORE,
       includeNoise: String(includeNoise),
       limit: String(conceptLimit),
+      maxMemories: '18',
     })
+    const effectiveQuery = focusedConcept || query
+    if (effectiveQuery) params.set('query', effectiveQuery)
     const response = await api<ApiConceptGraph>(`/api/concepts?${params.toString()}`)
     setConceptGraph(response)
-  }, [conceptLimit, includeNoise])
+  }, [conceptLimit, focusedConcept, includeNoise, query])
 
   const loadContextPreview = useCallback(async () => {
     const params = new URLSearchParams({
@@ -337,14 +444,22 @@ function App() {
 
   const loadIntelligence = useCallback(async () => {
     const params = new URLSearchParams({ store: PROJECT_STORE })
-    const [recommendationResponse, distillationResponse, graphResponse] = await Promise.all([
+    const directoryParams = new URLSearchParams({
+      store: PROJECT_STORE,
+      includeNoise: 'true',
+      status: 'all',
+      limit: '2000',
+    })
+    const [recommendationResponse, graphResponse, directoryResponse] = await Promise.all([
       api<RecommendationsResponse>(`/api/recommendations?${params.toString()}`),
-      api<{ proposals: DistillationProposal[] }>(`/api/distillation?${params.toString()}`),
       api<KnowledgeGraphResponse>(`/api/knowledge-graph?${params.toString()}`),
+      api<MemoriesResponse>(`/api/memories?${directoryParams.toString()}`),
     ])
     setRecommendations(recommendationResponse)
-    setDistillation(distillationResponse.proposals)
     setKnowledgeGraph(graphResponse)
+    setMemoryDirectory(
+      new Map(directoryResponse.memories.map((memory) => [getMetadata(memory).id, memory]))
+    )
   }, [])
 
   const refresh = useCallback(async () => {
@@ -362,6 +477,12 @@ function App() {
     setIsCreating(false)
     const response = await api<{ memory: Memory }>(`/api/memories/${id}?store=${PROJECT_STORE}`)
     setSelected(response.memory)
+  }, [])
+
+  const closeMemoryModal = useCallback(() => {
+    setSelected(null)
+    setSelectedId(null)
+    setIsCreating(false)
   }, [])
 
   useEffect(() => {
@@ -418,13 +539,14 @@ function App() {
       method: 'POST',
       body: JSON.stringify({
         type: data.get('type'),
-        scope: data.get('scope'),
+        scope: PROJECT_STORE,
         tags: parseTags(String(data.get('tags') ?? '')),
         content,
         source: 'ui',
       }),
     })
     setMessage(`Created ${response.memory.metadata.id}`)
+    setSelected(response.memory)
     setSelectedId(response.memory.metadata.id)
     setIsCreating(false)
     form.reset()
@@ -442,7 +564,7 @@ function App() {
         method: 'PATCH',
         body: JSON.stringify({
           type: data.get('type'),
-          scope: data.get('scope'),
+          scope: PROJECT_STORE,
           tags: parseTags(String(data.get('tags') ?? '')),
           content: String(data.get('content') ?? ''),
         }),
@@ -463,7 +585,7 @@ function App() {
         method: 'PATCH',
         body: JSON.stringify({
           type: selected.metadata.type,
-          scope: selected.metadata.scope,
+          scope: PROJECT_STORE,
           status: 'noise',
           tags,
           content: selected.content,
@@ -533,17 +655,37 @@ function App() {
     await refresh()
   }
 
-  async function applyDistillation(proposal: DistillationProposal) {
-    const response = await api<{ memory: Memory }>(
-      `/api/distillation/apply?store=${PROJECT_STORE}`,
+  async function preferContradiction(id: string, preferredId: string) {
+    await api(`/api/recommendations/${id}/prefer?store=${PROJECT_STORE}`, {
+      method: 'POST',
+      body: JSON.stringify({ preferredId }),
+    })
+    setMessage(`Resolved contradiction by keeping ${preferredId}`)
+    await refresh()
+  }
+
+  async function resetProjectMemory() {
+    const confirmed = window.confirm(
+      'DEBUG: This will permanently delete the entire .ai-memory directory for the current project. Continue?'
+    )
+    if (!confirmed) return
+    const response = await api<{ ok: boolean; basePath: string; removed: boolean }>(
+      `/api/debug/reset?store=${PROJECT_STORE}`,
       {
         method: 'POST',
-        body: JSON.stringify({ proposal }),
+        body: JSON.stringify({ confirm: 'RESET' }),
       }
     )
-    setMessage(`Created distilled memory ${response.memory.metadata.id}`)
-    setSelectedId(response.memory.metadata.id)
-    setWorkspaceView('evidence')
+    setSelected(null)
+    setSelectedId(null)
+    setIsCreating(false)
+    setFocusedConcept('')
+    setQuery('')
+    setMessage(
+      response.removed
+        ? `Project memory reset (${response.basePath}).`
+        : `Nothing to reset (${response.basePath} did not exist).`
+    )
     await refresh()
   }
 
@@ -554,10 +696,11 @@ function App() {
           <Sidebar
             stats={statsResponse?.stats ?? null}
             view={workspaceView}
+            onReset={resetProjectMemory}
             onViewChange={changeWorkspaceView}
           />
 
-          <main className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm">
+          <main className="min-w-0 rounded-md bg-card p-4 shadow-sm">
             <header className="mb-4 flex items-start justify-between gap-4 max-md:grid">
               <div>
                 <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
@@ -567,18 +710,20 @@ function App() {
                   Current project store, filtered to the active memory signals a LLM would use.
                 </p>
               </div>
-              <Button
-                className="max-md:w-full"
-                onClick={() => {
-                  setSelected(null)
-                  setSelectedId(null)
-                  setIsCreating(true)
-                  changeWorkspaceView('evidence')
-                }}
-              >
-                <Plus />
-                New memory
-              </Button>
+              <Hint label="Create a new durable project memory (.ai-memory). Use the Type field to pick decision / knowledge / rule / preference / etc.">
+                <Button
+                  className="max-md:w-full"
+                  onClick={() => {
+                    setSelected(null)
+                    setSelectedId(null)
+                    setIsCreating(true)
+                    changeWorkspaceView('evidence')
+                  }}
+                >
+                  <Plus />
+                  New memory
+                </Button>
+              </Hint>
             </header>
 
             {message ? (
@@ -609,6 +754,7 @@ function App() {
                   onClearFocus={clearFocus}
                   onConceptDepthChange={setConceptDepth}
                   onConceptSelect={focusConcept}
+                  onIgnore={ignoreConcept}
                   onMapLayoutChange={setMapLayout}
                 />
                 <section className="grid grid-cols-[minmax(20rem,0.78fr)_minmax(24rem,1fr)] gap-4 max-xl:grid-cols-1">
@@ -629,8 +775,9 @@ function App() {
             ) : null}
 
             {workspaceView === 'evidence' ? (
-              <section className="grid grid-cols-[minmax(21rem,0.88fr)_minmax(26rem,1.12fr)] gap-4 max-xl:grid-cols-1">
+              <section>
                 <MemoryIndex
+                  activeConcept={activeConcept}
                   focusedConcept={focusedConcept}
                   memories={memories}
                   onClearFocus={clearFocus}
@@ -645,44 +792,63 @@ function App() {
                   status={status}
                   totalMatching={memoryTotal}
                 />
-                <MemoryDetail
-                  activeConcept={activeConcept}
-                  isCreating={isCreating}
-                  onAction={runAction}
-                  onCreate={createFromForm}
-                  onNew={() => {
-                    setSelected(null)
-                    setSelectedId(null)
-                    setIsCreating(true)
-                  }}
-                  onUpdate={updateFromForm}
-                  selected={selected}
-                  suggestedTags={suggestedTags}
-                  store={PROJECT_STORE}
-                />
               </section>
             ) : null}
+
+            <MemoryModal
+              eyebrow={selected ? selected.metadata.id : isCreating ? 'Create' : 'Evidence'}
+              open={Boolean(selected) || isCreating}
+              title={
+                selected
+                  ? selected.metadata.status === 'proposed'
+                    ? 'Review memory'
+                    : 'Memory inspector'
+                  : 'New memory'
+              }
+              onClose={closeMemoryModal}
+            >
+              {selected ? (
+                <Editor
+                  key={selected.metadata.id}
+                  memory={selected}
+                  onAction={runAction}
+                  onUpdate={updateFromForm}
+                />
+              ) : isCreating ? (
+                <CreateForm onCreate={createFromForm} />
+              ) : null}
+            </MemoryModal>
 
             {workspaceView === 'context' ? (
               <ContextPreviewPanel
                 contextPreview={contextPreview}
                 focusedConcept={focusedConcept}
-                memories={memories}
                 onEvidence={() => changeWorkspaceView('evidence')}
               />
             ) : null}
 
             {workspaceView === 'knowledge' ? (
-              <KnowledgeGraphPanel graph={knowledgeGraph} onEvidence={selectMemory} />
+              <KnowledgeGraphPanel
+                directory={memoryDirectory}
+                graph={knowledgeGraph}
+                onEvidence={(id) => {
+                  changeWorkspaceView('evidence')
+                  void selectMemory(id)
+                }}
+              />
             ) : null}
 
             {workspaceView === 'governance' ? (
               <GovernancePanel
                 conceptGraph={conceptGraph}
-                distillation={distillation}
+                directory={memoryDirectory}
                 includeNoise={includeNoise}
-                onApplyDistillation={applyDistillation}
+                onEvidenceSelect={(id) => {
+                  changeWorkspaceView('evidence')
+                  void selectMemory(id)
+                }}
                 onIncludeNoiseChange={setIncludeNoise}
+                onPreferContradiction={preferContradiction}
                 onRecommendationAction={handleRecommendation}
                 recommendations={recommendations}
                 statsResponse={statsResponse}
@@ -696,16 +862,18 @@ function App() {
 }
 
 function Sidebar({
+  onReset,
   onViewChange,
   stats,
   view,
 }: {
+  onReset: () => void
   onViewChange: (view: WorkspaceView) => void
   stats: Stats | null
   view: WorkspaceView
 }) {
   return (
-    <aside className="sticky top-3 flex h-[calc(100vh-1.5rem)] flex-col gap-4 rounded-xl border border-border bg-sidebar p-4 shadow-sm max-lg:static max-lg:h-auto">
+    <aside className="sticky top-3 flex h-[calc(100vh-1.5rem)] flex-col gap-4 rounded-md bg-sidebar p-4 shadow-sm max-lg:static max-lg:h-auto">
       <div className="flex items-center gap-3">
         <div className="grid size-10 place-items-center rounded-md bg-primary text-sm font-black text-primary-foreground">
           MH
@@ -718,18 +886,19 @@ function Sidebar({
 
       <nav className="grid gap-1 text-sm">
         {navItems.map(({ icon: NavIcon, label, view: itemView }) => (
-          <button
-            key={itemView}
-            className={cn(
-              'flex h-9 items-center gap-2 rounded-md px-3 text-left text-muted-foreground transition hover:bg-muted/50 hover:text-foreground',
-              view === itemView && 'bg-primary/10 text-primary'
-            )}
-            type="button"
-            onClick={() => onViewChange(itemView)}
-          >
-            <NavIcon className="size-4" />
-            {label}
-          </button>
+          <Hint key={itemView} side="right" label={navHints[itemView]}>
+            <button
+              className={cn(
+                'flex h-9 items-center gap-2 rounded-sm px-3 text-left text-muted-foreground transition hover:bg-muted/50 hover:text-foreground',
+                view === itemView && 'bg-primary/10 text-primary'
+              )}
+              type="button"
+              onClick={() => onViewChange(itemView)}
+            >
+              <NavIcon className="size-4" />
+              {label}
+            </button>
+          </Hint>
         ))}
       </nav>
 
@@ -739,15 +908,20 @@ function Sidebar({
         <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
           Project store
         </p>
-        <div className="rounded-md border border-primary/20 bg-primary/8 p-3">
-          <div className="flex items-center gap-2 text-sm font-medium text-primary">
-            <Database className="size-4" />
-            .ai-memory
+        <Hint
+          side="right"
+          label="Project memory directory (.ai-memory). PAMH uses one project store for this map."
+        >
+          <div className="rounded-md bg-primary/8 p-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-primary">
+              <Database className="size-4" />
+              .ai-memory
+            </div>
+            <p className="mt-2 text-sm leading-5 text-muted-foreground">
+              Project-local memory only. This map uses one project store.
+            </p>
           </div>
-          <p className="mt-2 text-sm leading-5 text-muted-foreground">
-            Project-local memory only. Global memory is not mixed into this map.
-          </p>
-        </div>
+        </Hint>
       </div>
 
       <div className="grid gap-2">
@@ -755,25 +929,41 @@ function Sidebar({
           Status
         </p>
         {[
-          ['Active', stats?.active ?? 0, 'text-primary'],
-          ['Proposed', stats?.proposed ?? 0, 'text-secondary-foreground'],
-          ['Archived', stats?.archived ?? 0, 'text-muted-foreground'],
-          ['Noise', stats?.noise ?? 0, 'text-accent-foreground'],
-          ['Deleted', stats?.deleted ?? 0, 'text-destructive'],
-        ].map(([label, value, className]) => (
-          <div
-            key={String(label)}
-            className="flex items-center justify-between rounded-md border border-border bg-muted/35 px-3 py-2 text-sm"
-          >
-            <span className="text-muted-foreground">{label}</span>
-            <strong className={String(className)}>{value}</strong>
-          </div>
+          ['active', 'Active', stats?.active ?? 0],
+          ['proposed', 'Proposed', stats?.proposed ?? 0],
+          ['archived', 'Archived', stats?.archived ?? 0],
+          ['noise', 'Noise', stats?.noise ?? 0],
+          ['deleted', 'Deleted', stats?.deleted ?? 0],
+        ].map(([statusKey, label, value]) => (
+          <Hint key={String(label)} side="right" label={statusHints[String(label)]}>
+            <div className="flex items-center justify-between rounded-md bg-muted/35 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">{label}</span>
+              <StatusCount status={String(statusKey)} value={Number(value)} />
+            </div>
+          </Hint>
         ))}
       </div>
 
-      <div className="mt-auto rounded-md border border-border bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
+      <div className="mt-auto rounded-mda bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
         Project-local memory only.
       </div>
+
+      <Hint
+        side="right"
+        label="DEBUG — Deletes the entire .ai-memory directory of the current project. Irreversible. To be removed before release."
+      >
+        <button
+          className="flex items-center justify-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive transition hover:bg-destructive/20"
+          type="button"
+          onClick={onReset}
+        >
+          <Trash2 className="size-4" />
+          Reset project memory
+          <Badge className="ml-1 bg-destructive/20 text-destructive hover:bg-destructive/20">
+            debug
+          </Badge>
+        </button>
+      </Hint>
     </aside>
   )
 }
@@ -816,18 +1006,24 @@ function FocusBar({
         </span>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={() => onConsolidate(concept)}>
-          <Merge />
-          Consolidate
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => onIgnore(concept)}>
-          <Ban />
-          Mark noise
-        </Button>
-        <Button size="sm" variant="outline" onClick={onClear}>
-          <X />
-          Clear focus
-        </Button>
+        <Hint label={conceptHints.consolidate}>
+          <Button size="sm" variant="outline" onClick={() => onConsolidate(concept)}>
+            <Merge />
+            Consolidate
+          </Button>
+        </Hint>
+        <Hint label={conceptHints.markNoise}>
+          <Button size="sm" variant="outline" onClick={() => onIgnore(concept)}>
+            <Ban />
+            Mark noise
+          </Button>
+        </Hint>
+        <Hint label="Clear the focused concept and return to the full evidence list.">
+          <Button size="sm" variant="outline" onClick={onClear}>
+            <X />
+            Clear focus
+          </Button>
+        </Hint>
       </div>
     </div>
   )
@@ -843,48 +1039,52 @@ function Overview({
   statsResponse: StatsResponse | null
 }) {
   const stats = statsResponse?.stats
-  const excluded = statsResponse?.excludedNoiseMemories ?? 0
 
   return (
     <section className="mb-4 grid grid-cols-[0.9fr_0.9fr_0.9fr_1.15fr] gap-3 max-xl:grid-cols-2 max-md:grid-cols-1">
-      <MetricPanel
-        tone="primary"
-        label={nounLabel(stats?.active ?? 0, 'LLM candidate', 'LLM candidates')}
-        value={stats?.active ?? '-'}
-        detail={countLabel(stats?.total ?? 0, 'visible project memory', 'visible project memories')}
-      />
-      <MetricPanel
-        tone="secondary"
-        label={nounLabel(conceptGraph?.concepts.length ?? 0, 'Strong concept', 'Strong concepts')}
-        value={conceptGraph?.concepts.length ?? '-'}
-        detail={`from ${countLabel(
-          conceptGraph?.totalMemories ?? 0,
-          'visible memory',
-          'visible memories'
-        )}`}
-      />
-      <MetricPanel
-        tone="muted"
-        label="Evidence set"
-        value={memoryTotal}
-        detail="current query and status"
-      />
-      <div className="rounded-md border border-border bg-card p-4">
-        <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-          Excluded noise
-        </p>
-        <div className="mt-2 flex items-end justify-between gap-3">
-          <strong className="text-3xl font-semibold text-foreground">{excluded}</strong>
-          <span className="text-right text-sm leading-5 text-muted-foreground">
-            {countLabel(statsResponse?.excludedNoiseMemories ?? 0, 'noise item', 'noise items')}
-          </span>
+      <Hint label={conceptHints.llmCandidates}>
+        <div>
+          <MetricPanel
+            tone="primary"
+            label={nounLabel(stats?.active ?? 0, 'LLM candidate', 'LLM candidates')}
+            value={stats?.active ?? '-'}
+            detail={countLabel(
+              stats?.total ?? 0,
+              'visible project memory',
+              'visible project memories'
+            )}
+          />
         </div>
-        <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
-          <MiniBreakdown label="Types" values={stats?.byType} />
-          <MiniBreakdown label="Scopes" values={stats?.byScope} />
-          <MiniBreakdown label="Tags" values={stats?.tags} />
+      </Hint>
+      <Hint label={conceptHints.strongConcepts}>
+        <div>
+          <MetricPanel
+            tone="secondary"
+            label={nounLabel(
+              conceptGraph?.concepts.length ?? 0,
+              'Context concept',
+              'Context concepts'
+            )}
+            value={conceptGraph?.concepts.length ?? '-'}
+            detail={`from ${countLabel(
+              conceptGraph?.totalMemories ?? 0,
+              'context memory',
+              'context memories'
+            )}`}
+          />
         </div>
-      </div>
+      </Hint>
+      <Hint label={conceptHints.evidenceSet}>
+        <div>
+          <MetricPanel
+            tone="muted"
+            label="Evidence set"
+            value={memoryTotal}
+            detail="current query and status"
+          />
+        </div>
+      </Hint>
+      <div aria-hidden="true" className="rounded-md border border-border bg-card" />
     </section>
   )
 }
@@ -901,44 +1101,16 @@ function MetricPanel({
   value: number | string
 }) {
   const classes = {
-    primary: 'border-border bg-primary text-primary-foreground',
-    secondary: 'border-border bg-secondary text-secondary-foreground',
-    muted: 'border-border bg-muted text-foreground',
+    primary: 'bg-primary text-primary-foreground',
+    secondary: 'bg-secondary text-secondary-foreground',
+    muted: 'border border-border bg-muted text-foreground',
   }
 
   return (
-    <div className={cn('rounded-md border p-4', classes[tone])}>
+    <div className={cn('rounded-md p-4', classes[tone])}>
       <p className="text-sm font-bold uppercase tracking-widest opacity-65">{label}</p>
       <strong className="mt-2 block text-4xl font-semibold tracking-tight">{value}</strong>
       <p className="mt-2 text-sm opacity-75">{detail}</p>
-    </div>
-  )
-}
-
-function MiniBreakdown({ label, values }: { label: string; values?: Record<string, number> }) {
-  const entries = Object.entries(values ?? {}).sort((a, b) => b[1] - a[1])
-  const top = entries.slice(0, 2)
-  const more = Math.max(entries.length - top.length, 0)
-
-  return (
-    <div className="min-w-0 rounded-md bg-muted/35 p-2">
-      <p className="mb-1 text-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-        {label}
-      </p>
-      {top.length ? (
-        top.map(([key, value]) => (
-          <div
-            key={key}
-            className="flex items-center justify-between text-sm gap-2 text-foreground"
-          >
-            <span className="truncate">{key}</span>
-            <span>{value}</span>
-          </div>
-        ))
-      ) : (
-        <span className="text-muted-foreground">none</span>
-      )}
-      {more ? <p className="mt-1 text-muted-foreground">+ {more} more</p> : null}
     </div>
   )
 }
@@ -951,6 +1123,7 @@ function NeuralMapPanel({
   onClearFocus,
   onConceptDepthChange,
   onConceptSelect,
+  onIgnore,
   onMapLayoutChange,
 }: {
   conceptDepth: ConceptDepth
@@ -960,6 +1133,7 @@ function NeuralMapPanel({
   onClearFocus: () => void
   onConceptDepthChange: (depth: ConceptDepth) => void
   onConceptSelect: (concept: string) => void
+  onIgnore: (concept: string) => void
   onMapLayoutChange: (layout: MapLayout) => void
 }) {
   return (
@@ -967,15 +1141,11 @@ function NeuralMapPanel({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div>
           <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-            Neural map
+            LLM context map
           </p>
           <h2 className="mt-1 text-lg font-semibold text-foreground">
             {countLabel(conceptGraph?.concepts.length ?? 0, 'concept', 'concepts')} from{' '}
-            {countLabel(
-              conceptGraph?.totalMemories ?? 0,
-              'LLM candidate memory',
-              'LLM candidate memories'
-            )}
+            {countLabel(conceptGraph?.totalMemories ?? 0, 'context memory', 'context memories')}
           </h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -996,10 +1166,23 @@ function NeuralMapPanel({
             onChange={(value) => onConceptDepthChange(value as ConceptDepth)}
           />
           {focusedConcept ? (
-            <Button size="sm" type="button" variant="outline" onClick={onClearFocus}>
-              <X />
-              Clear
-            </Button>
+            <>
+              <Hint label={conceptHints.markNoise}>
+                <Button
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  onClick={() => onIgnore(focusedConcept)}
+                >
+                  <Ban />
+                  Mark noise
+                </Button>
+              </Hint>
+              <Button size="sm" type="button" variant="outline" onClick={onClearFocus}>
+                <X />
+                Clear
+              </Button>
+            </>
           ) : null}
         </div>
       </div>
@@ -1034,7 +1217,7 @@ function SegmentedControl({
         <button
           key={option.value}
           className={cn(
-            'h-8 rounded-[5px] px-3 text-sm font-medium text-muted-foreground transition hover:text-foreground',
+            'h-8 rounded-sm px-3 text-sm font-medium text-muted-foreground transition hover:text-foreground',
             value === option.value && 'bg-muted text-foreground'
           )}
           type="button"
@@ -1064,12 +1247,12 @@ function ConceptInspector({
 }) {
   if (!concept) {
     return (
-      <Panel title="Strong concepts" eyebrow="Memory signal">
+      <Panel title="Context concepts" eyebrow="LLM signal">
         <div className="grid gap-2">
           {(conceptGraph?.concepts ?? []).slice(0, 12).map((item) => (
             <button
               key={item.id}
-              className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted/35 px-3 py-2 text-left transition hover:border-primary/35 hover:bg-muted/60"
+              className="flex items-center justify-between gap-3 rounded-sm border border-border bg-muted/35 px-3 py-2 text-left transition hover:border-primary/35 hover:bg-muted/60"
               type="button"
               onClick={() => onConceptSelect(item.searchTerm)}
             >
@@ -1105,7 +1288,6 @@ function ConceptInspector({
           />
         </div>
         <CountList label="Types" values={concept.typeCounts} />
-        <CountList label="Scopes" values={concept.scopeCounts} />
         <div className="flex flex-wrap gap-2">
           {concept.evidence.map((item) => (
             <Badge key={item} className="bg-primary/10 text-primary hover:bg-primary/10">
@@ -1129,14 +1311,18 @@ function ConceptInspector({
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => onConsolidate(focusedConcept)}>
-            <Merge />
-            Consolidate
-          </Button>
-          <Button variant="outline" onClick={() => onIgnore(focusedConcept)}>
-            <Ban />
-            Mark noise
-          </Button>
+          <Hint label={conceptHints.consolidate}>
+            <Button onClick={() => onConsolidate(focusedConcept)}>
+              <Merge />
+              Consolidate
+            </Button>
+          </Hint>
+          <Hint label={conceptHints.markNoise}>
+            <Button variant="outline" onClick={() => onIgnore(focusedConcept)}>
+              <Ban />
+              Mark noise
+            </Button>
+          </Hint>
         </div>
       </div>
     </Panel>
@@ -1180,8 +1366,10 @@ function ContextMiniPanel({
 }
 
 function MemoryIndex({
+  activeConcept,
   focusedConcept,
   memories,
+  onClearFocus,
   onQueryChange,
   onSelect,
   onStatusChange,
@@ -1190,6 +1378,7 @@ function MemoryIndex({
   status,
   totalMatching,
 }: {
+  activeConcept: ApiConceptNode | null
   focusedConcept: string
   memories: Array<Memory | SearchResult>
   onClearFocus: () => void
@@ -1208,10 +1397,12 @@ function MemoryIndex({
       eyebrow={focusedConcept ? 'Concept evidence' : 'Memory index'}
       title={countLabel(totalMatching, 'matching memory', 'matching memories')}
       toolbar={
-        <Badge className="gap-1 bg-primary/10 text-primary hover:bg-primary/10">
-          <Circle className="size-2 fill-current" />
-          Live
-        </Badge>
+        <Hint label="This view streams from the local PAMH store and updates on every change.">
+          <Badge className="gap-1 bg-primary/10 text-primary hover:bg-primary/10">
+            <Circle className="size-2 fill-current" />
+            Live
+          </Badge>
+        </Hint>
       }
     >
       <div className="grid gap-3">
@@ -1231,48 +1422,85 @@ function MemoryIndex({
             </SelectTrigger>
             <SelectContent>
               {statuses.map((item) => (
-                <SelectItem key={item} value={item}>
+                <SelectItem key={item} value={item} title={statusHints[item]}>
                   {item === 'all' ? 'All statuses' : item}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        <ScrollArea className="h-176">
-          <div className="grid gap-4 pr-3">
+
+        {activeConcept ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/35 p-3 text-sm">
+            <div className="min-w-0">
+              <p className="font-medium text-foreground">{activeConcept.title}</p>
+              <p className="mt-1 text-muted-foreground">
+                {countLabel(activeConcept.occurrences, 'evidence memory', 'evidence memories')} /{' '}
+                {Object.keys(activeConcept.typeCounts).length} categories
+              </p>
+            </div>
+            <Button variant="outline" onClick={onClearFocus}>
+              <X />
+              Clear focus
+            </Button>
+          </div>
+        ) : null}
+
+        <div className="min-h-[30rem] overflow-x-auto">
+          <div
+            className="grid min-h-[30rem] gap-3"
+            style={{
+              gridAutoColumns: groups.length ? 'minmax(min(22rem, 100%), 1fr)' : '1fr',
+              gridAutoFlow: 'column',
+            }}
+          >
             {groups.length ? (
               groups.map(([group, items]) => (
-                <section key={group} className="grid gap-2">
-                  <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                      {group}
-                    </span>
-                    <span className="text-muted-foreground">{items.length}</span>
+                <section
+                  key={group}
+                  className="flex h-[calc(100vh-26rem)] min-h-[28rem] min-w-0 flex-col overflow-hidden rounded-md border border-border bg-background/35"
+                >
+                  <div className="flex min-h-[4.5rem] items-start justify-between gap-3 border-b border-border bg-muted/25 px-3 py-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                        {group}
+                      </p>
+                      <p className="mt-1 line-clamp-2 text-xs leading-4 text-muted-foreground">
+                        {typeHints[group] ?? 'Project memory category.'}
+                      </p>
+                    </div>
+                    <Badge className="shrink-0 rounded-full bg-background px-2 text-foreground hover:bg-background">
+                      {items.length}
+                    </Badge>
                   </div>
-                  {items.map((memory) => (
-                    <MemoryRow
-                      key={getMetadata(memory).id}
-                      focusedConcept={focusedConcept}
-                      memory={memory}
-                      selected={getMetadata(memory).id === selectedId}
-                      onSelect={onSelect}
-                    />
-                  ))}
+                  <ScrollArea className="min-h-0 flex-1">
+                    <div className="grid gap-2 p-2.5">
+                      {items.map((memory) => (
+                        <MemoryCard
+                          key={getMetadata(memory).id}
+                          focusedConcept={focusedConcept}
+                          memory={memory}
+                          selected={getMetadata(memory).id === selectedId}
+                          onSelect={onSelect}
+                        />
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </section>
               ))
             ) : (
-              <p className="p-6 text-center text-sm text-muted-foreground">
-                No memory matches this view.
-              </p>
+              <div className="grid min-h-[26rem] place-items-center rounded-md border border-dashed border-border bg-muted/25 p-6 text-center">
+                <p className="text-sm text-muted-foreground">No memory matches this view.</p>
+              </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </div>
     </Panel>
   )
 }
 
-function MemoryRow({
+function MemoryCard({
   focusedConcept,
   memory,
   onSelect,
@@ -1285,159 +1513,112 @@ function MemoryRow({
 }) {
   const metadata = getMetadata(memory)
   const title = getMemoryTitle(memory.content)
+  const visibleTags = metadata.tags.slice(0, 4)
+  const hiddenTagCount = metadata.tags.length - visibleTags.length
 
   return (
     <button
       className={cn(
-        'grid gap-2 rounded-md border border-border bg-muted/35 p-3 text-left transition hover:border-primary/40 hover:bg-muted/60',
-        selected && 'border-primary bg-primary/10'
+        'grid min-h-[8.5rem] gap-2 rounded-sm border border-border bg-card/70 p-3 text-left shadow-sm transition hover:border-primary/40 hover:bg-muted/45',
+        selected && 'border-primary bg-primary/10 shadow-none'
       )}
       type="button"
       onClick={() => onSelect(metadata.id)}
     >
       <span className="flex items-start justify-between gap-3">
         <span className="min-w-0">
-          <span className="block truncate font-medium text-foreground">{title}</span>
-          <span className="mt-1 flex flex-wrap gap-2 text-sm text-muted-foreground">
-            <span>{metadata.type}</span>
-            <span>{metadata.scope}</span>
+          <span className="line-clamp-2 font-medium leading-5 text-foreground">{title}</span>
+          <span className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
             <span>{formatDate(metadata.updated_at)}</span>
             {focusedConcept ? <span>matches {focusedConcept}</span> : null}
           </span>
         </span>
-        {metadata.status === 'active' ? (
-          <span className="mt-1 size-2 shrink-0 rounded-full bg-primary" />
-        ) : (
-          <StatusBadge status={metadata.status} />
-        )}
+        <StatusBadge status={metadata.status} />
       </span>
-      <span className="line-clamp-2 text-sm leading-6 text-muted-foreground">{memory.content}</span>
+      <span className="line-clamp-3 text-sm leading-5 text-muted-foreground">{memory.content}</span>
       <span className="flex flex-wrap gap-1.5">
-        {metadata.tags.slice(0, 5).map((tag) => (
+        {visibleTags.map((tag) => (
           <Badge key={tag} className="bg-muted/70 text-foreground hover:bg-muted/70">
             {tag}
           </Badge>
         ))}
+        {hiddenTagCount > 0 ? (
+          <Badge className="bg-muted/45 text-muted-foreground hover:bg-muted/45">
+            +{hiddenTagCount}
+          </Badge>
+        ) : null}
       </span>
     </button>
   )
 }
 
-function MemoryDetail({
-  activeConcept,
-  isCreating,
-  onAction,
-  onCreate,
-  onNew,
-  onUpdate,
-  selected,
-  suggestedTags,
-  store,
+function MemoryModal({
+  children,
+  eyebrow,
+  open,
+  onClose,
+  title,
 }: {
-  activeConcept: ApiConceptNode | null
-  isCreating: boolean
-  onAction: (action: MemoryAction) => void
-  onCreate: (event: FormEvent<HTMLFormElement>) => void
-  onNew: () => void
-  onUpdate: (event: FormEvent<HTMLFormElement>) => void
-  selected: Memory | null
-  suggestedTags: string[]
-  store: Store
+  children: ReactNode
+  eyebrow: string
+  open: boolean
+  onClose: () => void
+  title: string
 }) {
-  if (selected) {
-    return (
-      <Panel
-        title={selected.metadata.status === 'proposed' ? 'Review memory' : 'Memory inspector'}
-        eyebrow={selected.metadata.id}
-      >
-        <Editor
-          memory={selected}
-          onAction={onAction}
-          onNew={onNew}
-          onUpdate={onUpdate}
-          suggestedTags={suggestedTags}
-        />
-      </Panel>
-    )
-  }
+  useEffect(() => {
+    if (!open) return
 
-  if (isCreating) {
-    return (
-      <Panel title="New memory" eyebrow="Create">
-        <CreateForm onCreate={onCreate} store={store} suggestedTags={suggestedTags} />
-      </Panel>
-    )
-  }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [onClose, open])
+
+  if (!open) return null
 
   return (
-    <Panel
-      title={activeConcept ? `${activeConcept.title} summary` : 'Inspector'}
-      eyebrow="Selection"
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
     >
-      {activeConcept ? (
-        <div className="grid gap-4">
-          <div className="grid grid-cols-3 gap-2">
-            <MetaTile label="Evidence" value={String(activeConcept.occurrences)} />
-            <MetaTile
-              label="Types"
-              value={Object.keys(activeConcept.typeCounts).length.toString()}
-            />
-            <MetaTile
-              label="Sources"
-              value={Object.keys(activeConcept.sourceCounts).length.toString()}
-            />
+      <section
+        aria-modal="true"
+        className="flex max-h-[calc(100vh-2rem)] w-[min(48rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-md border border-border bg-card shadow-2xl"
+        role="dialog"
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+              {eyebrow}
+            </p>
+            <h2 className="mt-1 truncate text-lg font-semibold text-foreground">{title}</h2>
           </div>
-          <p className="text-sm leading-6 text-muted-foreground">
-            The list at left is the representative evidence set for this concept.
-          </p>
-          <Button className="w-fit" onClick={onNew}>
-            <Plus />
-            Add memory
-          </Button>
+          <Hint label="Close this memory detail modal.">
+            <Button size="icon" variant="outline" onClick={onClose}>
+              <X />
+            </Button>
+          </Hint>
         </div>
-      ) : (
-        <EmptyInspector onNew={onNew} />
-      )}
-    </Panel>
-  )
-}
-
-function EmptyInspector({ onNew }: { onNew: () => void }) {
-  return (
-    <div className="grid place-items-center rounded-md border border-dashed border-border bg-muted/35 p-8 text-center">
-      <div className="grid max-w-sm gap-3">
-        <Eye className="mx-auto size-7 text-muted-foreground" />
-        <p className="text-sm leading-6 text-muted-foreground">
-          Select an evidence memory or create a durable project memory.
-        </p>
-        <Button className="mx-auto" onClick={onNew}>
-          <Plus />
-          New memory
-        </Button>
-      </div>
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="p-4">{children}</div>
+        </ScrollArea>
+      </section>
     </div>
   )
 }
 
-function CreateForm({
-  onCreate,
-  store,
-  suggestedTags,
-}: {
-  onCreate: (event: FormEvent<HTMLFormElement>) => void
-  store: Store
-  suggestedTags: string[]
-}) {
-  const [tags, setTags] = useState(suggestedTags.slice(0, 3).join(', '))
-
-  useEffect(() => {
-    if (!tags) setTags(suggestedTags.slice(0, 3).join(', '))
-  }, [suggestedTags, tags])
+function CreateForm({ onCreate }: { onCreate: (event: FormEvent<HTMLFormElement>) => void }) {
+  const [tags, setTags] = useState('')
 
   return (
     <form className="grid gap-4" onSubmit={onCreate}>
-      <TypeScopeFields scope={store} type="knowledge" />
-      <TagField suggestedTags={suggestedTags} tags={tags} onTagsChange={setTags} />
+      <TypeScopeFields type="knowledge" />
+      <TagField tags={tags} onTagsChange={setTags} />
       <Label text="Memory">
         <Textarea
           className="min-h-56 border-border bg-background/60 text-foreground"
@@ -1457,15 +1638,11 @@ function CreateForm({
 function Editor({
   memory,
   onAction,
-  onNew,
   onUpdate,
-  suggestedTags,
 }: {
   memory: Memory
   onAction: (action: MemoryAction) => void
-  onNew: () => void
   onUpdate: (event: FormEvent<HTMLFormElement>) => void
-  suggestedTags: string[]
 }) {
   const isProposed = memory.metadata.status === 'proposed'
   const isArchived = memory.metadata.status === 'archived'
@@ -1481,29 +1658,12 @@ function Editor({
 
   return (
     <form className="grid gap-4" onSubmit={onUpdate}>
-      <div className="flex items-start justify-between gap-3 max-md:grid">
-        <div className="grid grid-cols-3 gap-2 max-md:grid-cols-1">
-          <MetaTile label="Status" value={memory.metadata.status} />
-          <MetaTile label="Scope" value={memory.metadata.scope} />
-          <MetaTile label="Updated" value={formatDate(memory.metadata.updated_at)} />
-        </div>
-        <Button type="button" variant="outline" onClick={onNew}>
-          <Plus />
-          New
-        </Button>
+      <div className="grid grid-cols-2 gap-2 max-md:grid-cols-1">
+        <MetaTile label="Status" value={memory.metadata.status} />
+        <MetaTile label="Updated" value={formatDate(memory.metadata.updated_at)} />
       </div>
-
-      <TypeScopeFields
-        disabled={!canEdit}
-        scope={memory.metadata.scope}
-        type={memory.metadata.type}
-      />
-      <TagField
-        disabled={!canEdit}
-        suggestedTags={suggestedTags}
-        tags={tags}
-        onTagsChange={setTags}
-      />
+      <TypeScopeFields disabled={!canEdit} type={memory.metadata.type} />
+      <TagField disabled={!canEdit} tags={tags} onTagsChange={setTags} />
       <Label text="Memory">
         <Textarea
           className="min-h-72 border-border bg-background/60 text-foreground"
@@ -1516,39 +1676,51 @@ function Editor({
 
       {isProposed ? (
         <div className="flex flex-wrap gap-2">
-          <Button type="button" onClick={() => onAction('approve')}>
-            <Check />
-            Approve
-          </Button>
-          <Button type="button" variant="destructive" onClick={() => onAction('reject')}>
-            <X />
-            Reject
-          </Button>
+          <Hint label={conceptHints.approve}>
+            <Button type="button" onClick={() => onAction('approve')}>
+              <Check />
+              Approve
+            </Button>
+          </Hint>
+          <Hint label={conceptHints.reject}>
+            <Button type="button" variant="destructive" onClick={() => onAction('reject')}>
+              <X />
+              Reject
+            </Button>
+          </Hint>
         </div>
       ) : (
         <div className="grid gap-3">
           <div className="flex flex-wrap gap-2">
             {canEdit ? (
               <>
-                <Button type="submit">
-                  <Save />
-                  Save
-                </Button>
-                <Button type="button" variant="outline" onClick={() => onAction('archive')}>
-                  <Archive />
-                  Archive
-                </Button>
-                <Button type="button" variant="outline" onClick={() => onAction('mark-noise')}>
-                  <Ban />
-                  Mark noise
-                </Button>
+                <Hint label={conceptHints.save}>
+                  <Button type="submit">
+                    <Save />
+                    Save
+                  </Button>
+                </Hint>
+                <Hint label={conceptHints.archive}>
+                  <Button type="button" variant="outline" onClick={() => onAction('archive')}>
+                    <Archive />
+                    Archive
+                  </Button>
+                </Hint>
+                <Hint label={conceptHints.markNoise}>
+                  <Button type="button" variant="outline" onClick={() => onAction('mark-noise')}>
+                    <Ban />
+                    Mark noise
+                  </Button>
+                </Hint>
               </>
             ) : null}
             {isArchived || isDeleted || isNoise ? (
-              <Button type="button" onClick={() => onAction('restore')}>
-                <RotateCcw />
-                Restore
-              </Button>
+              <Hint label={conceptHints.restore}>
+                <Button type="button" onClick={() => onAction('restore')}>
+                  <RotateCcw />
+                  Restore
+                </Button>
+              </Hint>
             ) : null}
           </div>
           <div className="rounded-md border border-destructive/25 bg-destructive/10 p-3">
@@ -1562,18 +1734,22 @@ function Editor({
             </button>
             {dangerOpen ? (
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button type="button" variant="outline" onClick={() => onAction('delete')}>
-                  <Trash2 />
-                  Soft delete
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => onAction('physical-delete')}
-                >
-                  <Trash2 />
-                  Confirm physical delete
-                </Button>
+                <Hint label={conceptHints.softDelete}>
+                  <Button type="button" variant="outline" onClick={() => onAction('delete')}>
+                    <Trash2 />
+                    Soft delete
+                  </Button>
+                </Hint>
+                <Hint label={conceptHints.physicalDelete}>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => onAction('physical-delete')}
+                  >
+                    <Trash2 />
+                    Confirm physical delete
+                  </Button>
+                </Hint>
               </div>
             ) : null}
           </div>
@@ -1586,12 +1762,10 @@ function Editor({
 function TagField({
   disabled = false,
   onTagsChange,
-  suggestedTags,
   tags,
 }: {
   disabled?: boolean
   onTagsChange: (value: string) => void
-  suggestedTags: string[]
   tags: string
 }) {
   return (
@@ -1603,23 +1777,6 @@ function TagField({
         value={tags}
         onChange={(event) => onTagsChange(event.target.value)}
       />
-      {!disabled && suggestedTags.length ? (
-        <span className="flex flex-wrap gap-1.5">
-          {suggestedTags.slice(0, 8).map((tag) => (
-            <button
-              key={tag}
-              className="rounded-md border border-border bg-muted/40 px-2 py-1 text-sm text-foreground hover:border-primary/30 hover:text-foreground"
-              type="button"
-              onClick={() => {
-                const current = parseTags(tags)
-                if (!current.includes(tag)) onTagsChange([...current, tag].join(', '))
-              }}
-            >
-              {tag}
-            </button>
-          ))}
-        </span>
-      ) : null}
     </Label>
   )
 }
@@ -1627,12 +1784,10 @@ function TagField({
 function ContextPreviewPanel({
   contextPreview,
   focusedConcept,
-  memories,
   onEvidence,
 }: {
   contextPreview: ContextPreview | null
   focusedConcept: string
-  memories: Array<Memory | SearchResult>
   onEvidence: () => void
 }) {
   const copyContext = async () => {
@@ -1646,10 +1801,12 @@ function ContextPreviewPanel({
         eyebrow={focusedConcept ? 'Focused LLM context' : 'General LLM context'}
         title="What the LLM would read"
         toolbar={
-          <Button size="sm" variant="outline" onClick={copyContext}>
-            <FileText />
-            Copy
-          </Button>
+          <Hint label={conceptHints.copyContext}>
+            <Button size="sm" variant="outline" onClick={copyContext}>
+              <FileText />
+              Copy
+            </Button>
+          </Hint>
         }
       >
         <pre className="h-184 overflow-auto rounded-md border border-border bg-background/60 p-4 text-sm leading-6 text-foreground">
@@ -1675,31 +1832,51 @@ function ContextPreviewPanel({
               value={String(contextPreview?.tokenEstimate ?? 0)}
             />
           </div>
-          <Button variant="outline" onClick={onEvidence}>
-            <ListFilter />
-            Open evidence
-          </Button>
+          <Hint label="Open the Evidence view filtered by the current concept / query.">
+            <Button variant="outline" onClick={onEvidence}>
+              <ListFilter />
+              Open evidence
+            </Button>
+          </Hint>
           <ScrollArea className="h-144">
             <div className="grid gap-2 pr-3">
-              {memories.slice(0, 18).map((memory) => {
-                const metadata = getMetadata(memory)
-                return (
-                  <div
-                    key={metadata.id}
-                    className="rounded-md border border-border bg-muted/35 p-3"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium text-foreground">{metadata.type}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {formatDate(metadata.updated_at)}
-                      </span>
-                    </div>
-                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
-                      {memory.content}
-                    </p>
+              {(contextPreview?.sources ?? []).map((source) => (
+                <div key={source.id} className="rounded-md border border-border bg-muted/35 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-foreground">{source.section}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {formatDate(source.updated_at)}
+                    </span>
                   </div>
-                )
-              })}
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <Badge className="bg-primary/10 text-primary hover:bg-primary/10">
+                      {source.type}
+                    </Badge>
+                    {source.reasons.slice(0, 3).map((reason) => (
+                      <Badge key={reason} className="bg-muted text-foreground hover:bg-muted">
+                        {reason}
+                      </Badge>
+                    ))}
+                  </div>
+                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                    {source.content}
+                  </p>
+                </div>
+              ))}
+              {contextPreview?.exclusions?.length ? (
+                <div className="rounded-md border border-border bg-background/50 p-3">
+                  <p className="text-sm font-medium text-foreground">Excluded from LLM context</p>
+                  <div className="mt-2 grid gap-1.5">
+                    {contextPreview.exclusions.slice(0, 8).map((exclusion) => (
+                      <p key={exclusion.id} className="text-sm text-muted-foreground">
+                        <span className="font-mono text-xs">{exclusion.id}</span>
+                        {' - '}
+                        {exclusion.reason}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </ScrollArea>
         </div>
@@ -1709,9 +1886,11 @@ function ContextPreviewPanel({
 }
 
 function KnowledgeGraphPanel({
+  directory,
   graph,
   onEvidence,
 }: {
+  directory: Map<string, Memory | SearchResult>
   graph: KnowledgeGraphResponse | null
   onEvidence: (id: string) => void
 }) {
@@ -1748,7 +1927,11 @@ function KnowledgeGraphPanel({
                           <span className="text-muted-foreground">{' -> '}</span>
                           {entityById.get(relation.target)?.label ?? relation.target}
                         </p>
-                        <EvidenceLinks ids={relation.evidence_ids} onOpen={onEvidence} />
+                        <EvidenceLinks
+                          directory={directory}
+                          ids={relation.evidence_ids}
+                          onOpen={onEvidence}
+                        />
                       </div>
                     ))}
                   </div>
@@ -1772,7 +1955,11 @@ function KnowledgeGraphPanel({
                   </span>
                   <Badge variant="secondary">{entity.type}</Badge>
                 </div>
-                <EvidenceLinks ids={entity.evidence_ids} onOpen={onEvidence} />
+                <EvidenceLinks
+                  directory={directory}
+                  ids={entity.evidence_ids}
+                  onOpen={onEvidence}
+                />
               </div>
             ))}
           </div>
@@ -1782,180 +1969,424 @@ function KnowledgeGraphPanel({
   )
 }
 
+interface RecommendationDescriptor {
+  summary: string
+  acceptLabel: string
+  acceptHint: string
+  rejectHint: string
+  deferHint: string
+  details: Array<{ label: string; value: string }>
+}
+
+function describeRecommendation(rec: MemoryRecommendation): RecommendationDescriptor {
+  const evidenceCount = rec.evidence_ids.length
+  const details: Array<{ label: string; value: string }> = []
+
+  switch (rec.type) {
+    case 'distill_candidates': {
+      const sources = rec.payload?.source_ids?.length ?? evidenceCount
+      if (rec.payload?.concept) details.push({ label: 'Concept', value: rec.payload.concept })
+      details.push({ label: 'Sources', value: String(sources) })
+      if (typeof rec.payload?.compression_ratio === 'number') {
+        details.push({
+          label: 'Compression',
+          value: `${Math.round(rec.payload.compression_ratio * 100)}%`,
+        })
+      }
+      return {
+        summary: `Creates one proposed "knowledge" memory that consolidates ${sources} sources and archives the originals (they leave the LLM context but stay restorable from Evidence). Re-clicking is safe: if the same set was already distilled, no duplicate is created.`,
+        acceptLabel: 'Consolidate into one memory',
+        acceptHint:
+          'Creates the distilled memory and archives the source memories. Idempotent — clicking twice does not duplicate.',
+        rejectHint: 'Dismiss this distillation suggestion. It will not be proposed again.',
+        deferHint: 'Hide for now. The suggestion may resurface next time you refresh.',
+        details,
+      }
+    }
+    case 'noise_candidate': {
+      const targetId = rec.payload?.target_id ?? rec.evidence_ids[0]
+      if (targetId) details.push({ label: 'Memory', value: targetId })
+      return {
+        summary:
+          'Will mark this low-signal memory as Noise. It is hidden from the LLM context and the map, but kept for audit.',
+        acceptLabel: 'Mark as noise',
+        acceptHint: 'Move this memory to the Noise bucket. Reversible from the Evidence view.',
+        rejectHint: 'Keep this memory visible and stop suggesting it.',
+        deferHint: 'Hide for now without changing the memory.',
+        details,
+      }
+    }
+    case 'obsolete_candidate': {
+      const older = rec.payload?.target_id ?? rec.evidence_ids[0]
+      const replacement = rec.payload?.replacement_id ?? rec.evidence_ids[1]
+      if (older) details.push({ label: 'Archive', value: older })
+      if (replacement) details.push({ label: 'Replaced by', value: replacement })
+      return {
+        summary:
+          'Will archive the older memory because a newer one appears to replace it. Archived memories stay searchable but are not loaded into the LLM context.',
+        acceptLabel: 'Archive older',
+        acceptHint: 'Archive the older memory. Restorable from the Evidence view.',
+        rejectHint: 'Keep both memories Active and stop suggesting this archival.',
+        deferHint: 'Hide for now without archiving.',
+        details,
+      }
+    }
+    case 'contradiction': {
+      const left = rec.payload?.left_id ?? rec.evidence_ids[0]
+      const right = rec.payload?.right_id ?? rec.evidence_ids[1]
+      if (left) details.push({ label: 'Memory A', value: left })
+      if (right) details.push({ label: 'Memory B', value: right })
+      return {
+        summary:
+          'Choose which memory is preferred. PAMH will keep that memory active, archive the opposing memory, and link the archived memory to the preferred one.',
+        acceptLabel: 'Inspect',
+        acceptHint: 'Open the evidence memories to review the contradiction.',
+        rejectHint: 'Dismiss this contradiction warning.',
+        deferHint: 'Hide for now. The contradiction will resurface on next refresh.',
+        details,
+      }
+    }
+    case 'strong_concept': {
+      if (rec.payload?.concept) details.push({ label: 'Concept', value: rec.payload.concept })
+      if (typeof rec.payload?.count === 'number')
+        details.push({ label: 'Memories', value: String(rec.payload.count) })
+      return {
+        summary:
+          'Heads-up: this concept recurs across the current LLM context. Consider creating a curated knowledge or rule to anchor it.',
+        acceptLabel: 'Open evidence',
+        acceptHint: 'Open the Evidence view filtered by this concept.',
+        rejectHint: 'Dismiss this hint.',
+        deferHint: 'Hide for now.',
+        details,
+      }
+    }
+    default:
+      return {
+        summary: rec.action
+          ? `Will apply the "${rec.action.replaceAll('_', ' ')}" action on ${evidenceCount} memory${evidenceCount > 1 ? 'ies' : ''}.`
+          : 'No automatic action — review the evidence manually.',
+        acceptLabel: rec.action ? 'Apply' : 'Inspect',
+        acceptHint: 'Apply this recommendation.',
+        rejectHint: 'Dismiss this recommendation.',
+        deferHint: 'Hide for now.',
+        details,
+      }
+  }
+}
+
 function GovernancePanel({
   conceptGraph,
-  distillation,
+  directory,
   includeNoise,
-  onApplyDistillation,
+  onEvidenceSelect,
   onIncludeNoiseChange,
+  onPreferContradiction,
   onRecommendationAction,
   recommendations,
   statsResponse,
 }: {
   conceptGraph: ApiConceptGraph | null
-  distillation: DistillationProposal[]
+  directory: Map<string, Memory | SearchResult>
   includeNoise: boolean
-  onApplyDistillation: (proposal: DistillationProposal) => void
+  onEvidenceSelect: (id: string) => void
   onIncludeNoiseChange: (include: boolean) => void
+  onPreferContradiction: (id: string, preferredId: string) => void
   onRecommendationAction: (id: string, action: 'apply' | 'reject' | 'defer') => void
   recommendations: RecommendationsResponse | null
   statsResponse: StatsResponse | null
 }) {
+  const recs = recommendations?.recommendations ?? []
+  const openCount = recommendations?.metrics.proposed_recommendations ?? recs.length
+  const preservationPct = recommendations?.metrics
+    ? Math.round(recommendations.metrics.source_preservation_rate * 100)
+    : 100
+
   return (
-    <section className="grid grid-cols-[minmax(22rem,0.7fr)_minmax(28rem,1.3fr)] gap-4 max-xl:grid-cols-1">
-      <Panel title="View hygiene" eyebrow="Governance">
-        <div className="grid gap-3">
-          <ToggleRow
-            active={includeNoise}
-            icon={Ban}
-            label={`Show ${countLabel(
-              statsResponse?.excludedNoiseMemories ?? 0,
-              'memory marked as noise',
-              'memories marked as noise'
-            )}`}
-            value={countLabel(
-              statsResponse?.excludedNoiseMemories ?? 0,
-              'hidden item',
-              'hidden items'
-            )}
-            onToggle={() => onIncludeNoiseChange(!includeNoise)}
-          />
-          <div className="rounded-md border border-border bg-muted/35 p-3">
-            <p className="text-sm font-medium text-foreground">Raw project store</p>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              {countLabel(
-                statsResponse?.rawTotalMemories ?? 0,
-                'raw indexed memory',
-                'raw indexed memories'
-              )}{' '}
-              total,{' '}
-              {countLabel(statsResponse?.stats.total ?? 0, 'visible memory', 'visible memories')} in
-              the working map.
-            </p>
-          </div>
-        </div>
-      </Panel>
-      <div className="grid gap-4">
-        <Panel title="Recommendations" eyebrow="Assisted review">
-          <ScrollArea className="h-96">
-            <div className="grid gap-3 pr-3">
-              {(recommendations?.recommendations ?? []).slice(0, 30).map((recommendation) => (
-                <div
-                  key={recommendation.id}
-                  className="rounded-md border border-border bg-muted/30 p-3"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Badge className="bg-primary/10 text-primary hover:bg-primary/10">
-                      {recommendation.type}
-                    </Badge>
-                    <span className="text-sm text-muted-foreground">
-                      {recommendation.action ?? 'inspect'}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm font-medium text-foreground">{recommendation.title}</p>
-                  <p className="mt-1 text-sm leading-5 text-muted-foreground">
-                    {recommendation.explanation}
-                  </p>
-                  <EvidenceLinks ids={recommendation.evidence_ids} />
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {recommendation.action ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onRecommendationAction(recommendation.id, 'apply')}
-                      >
-                        <Check />
-                        Accept
-                      </Button>
-                    ) : null}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onRecommendationAction(recommendation.id, 'defer')}
-                    >
-                      <Circle />
-                      Defer
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onRecommendationAction(recommendation.id, 'reject')}
-                    >
-                      <X />
-                      Reject
-                    </Button>
-                  </div>
+    <section className="grid gap-4">
+      <div className="grid grid-cols-[minmax(22rem,0.7fr)_minmax(28rem,1.3fr)] gap-4 max-xl:grid-cols-1">
+        <div className="grid gap-4">
+          <Panel title="View hygiene" eyebrow="Governance">
+            <div className="grid gap-3">
+              <Hint side="right" label={conceptHints.showNoise}>
+                <div>
+                  <ToggleRow
+                    active={includeNoise}
+                    icon={Ban}
+                    label={`Show ${countLabel(
+                      statsResponse?.excludedNoiseMemories ?? 0,
+                      'memory marked as noise',
+                      'memories marked as noise'
+                    )}`}
+                    value={countLabel(
+                      statsResponse?.excludedNoiseMemories ?? 0,
+                      'hidden item',
+                      'hidden items'
+                    )}
+                    onToggle={() => onIncludeNoiseChange(!includeNoise)}
+                  />
                 </div>
-              ))}
-              {!recommendations?.recommendations.length ? (
-                <p className="text-sm text-muted-foreground">No recommendations available.</p>
+              </Hint>
+              <div className="rounded-md border border-border bg-muted/35 p-3">
+                <p className="text-sm font-medium text-foreground">Raw project store</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {countLabel(
+                    statsResponse?.rawTotalMemories ?? 0,
+                    'raw indexed memory',
+                    'raw indexed memories'
+                  )}{' '}
+                  total,{' '}
+                  {countLabel(
+                    statsResponse?.stats.total ?? 0,
+                    'visible memory',
+                    'visible memories'
+                  )}{' '}
+                  in the working map.
+                </p>
+              </div>
+            </div>
+          </Panel>
+          <Panel title="Ignored concepts" eyebrow="Noise map">
+            <div className="flex flex-wrap gap-2">
+              {conceptGraph?.ignoredConcepts.length ? (
+                conceptGraph.ignoredConcepts.map((concept) => (
+                  <Badge
+                    key={concept}
+                    className="bg-destructive/10 text-destructive hover:bg-destructive/10"
+                  >
+                    {concept}
+                  </Badge>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No ignored concepts yet. Mark a concept as noise from the Concepts map or from a
+                  recommendation to keep it out of the LLM context.
+                </p>
+              )}
+            </div>
+          </Panel>
+        </div>
+        <Panel
+          title="Recommendations"
+          eyebrow="Assisted review"
+          toolbar={
+            <Hint
+              label={`Source preservation rate: % of original memories still reachable after applied recommendations. 100% means nothing has been lost.`}
+            >
+              <Badge className="bg-muted text-foreground hover:bg-muted">
+                {countLabel(openCount, 'open suggestion', 'open suggestions')} · {preservationPct}%
+                preserved
+              </Badge>
+            </Hint>
+          }
+        >
+          <ScrollArea className="h-184">
+            <div className="grid gap-3 pr-3">
+              {recs.length === 0 ? (
+                <div className="grid place-items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 p-8 text-center">
+                  <Check className="size-6 text-primary" />
+                  <p className="text-sm font-medium text-foreground">All clean!</p>
+                  <p className="max-w-sm text-sm leading-5 text-muted-foreground">
+                    PAMH has no maintenance suggestion for now. Keep capturing memories — new
+                    suggestions will appear here when patterns emerge.
+                  </p>
+                </div>
               ) : null}
+              {recs.slice(0, 30).map((recommendation, index) => {
+                const descriptor = describeRecommendation(recommendation)
+                const contradictionIds =
+                  recommendation.type === 'contradiction'
+                    ? [
+                        recommendation.payload?.left_id ?? recommendation.evidence_ids[0],
+                        recommendation.payload?.right_id ?? recommendation.evidence_ids[1],
+                      ].filter((id): id is string => Boolean(id))
+                    : []
+                return (
+                  <div
+                    key={recommendation.id}
+                    className="grid gap-3 rounded-md border border-border bg-muted/30 p-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        {index === 0 ? (
+                          <Hint label="Top suggestion based on impact. Starting here is a safe choice.">
+                            <Badge className="bg-primary text-primary-foreground hover:bg-primary">
+                              <Sparkles className="size-3" />
+                              Suggested next
+                            </Badge>
+                          </Hint>
+                        ) : null}
+                        <Hint label={`Recommendation type: ${recommendation.type}`}>
+                          <Badge className="bg-primary/10 text-primary hover:bg-primary/10">
+                            {recommendation.type.replaceAll('_', ' ')}
+                          </Badge>
+                        </Hint>
+                      </div>
+                      <span className="text-xs uppercase tracking-widest text-muted-foreground">
+                        {recommendation.action
+                          ? recommendation.action.replaceAll('_', ' ')
+                          : 'manual review'}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-foreground">{recommendation.title}</p>
+                    <p className="text-sm leading-5 text-muted-foreground">
+                      {recommendation.explanation}
+                    </p>
+                    <div className="rounded-sm border border-primary/20 bg-primary/8 p-2 text-sm leading-5">
+                      <span className="text-xs font-semibold uppercase tracking-widest text-primary/80">
+                        If you accept
+                      </span>
+                      <p className="mt-1 text-foreground">{descriptor.summary}</p>
+                    </div>
+                    {descriptor.details.length ? (
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        {descriptor.details.map((detail) => (
+                          <span
+                            key={detail.label}
+                            className="rounded-sm bg-background/60 px-2 py-1 text-muted-foreground"
+                          >
+                            <span className="uppercase tracking-widest opacity-70">
+                              {detail.label}
+                            </span>{' '}
+                            <span className="text-foreground">{detail.value}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="grid gap-1.5">
+                      <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                        Affected memories ({recommendation.evidence_ids.length})
+                      </span>
+                      <EvidenceLinks
+                        directory={directory}
+                        ids={recommendation.evidence_ids}
+                        onOpen={onEvidenceSelect}
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+                      {contradictionIds.length === 2 ? (
+                        <>
+                          <Hint
+                            label={`Keep ${contradictionIds[0]} active and archive ${contradictionIds[1]}.`}
+                          >
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                onPreferContradiction(recommendation.id, contradictionIds[0])
+                              }
+                            >
+                              <Check />
+                              Keep A
+                            </Button>
+                          </Hint>
+                          <Hint
+                            label={`Keep ${contradictionIds[1]} active and archive ${contradictionIds[0]}.`}
+                          >
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                onPreferContradiction(recommendation.id, contradictionIds[1])
+                              }
+                            >
+                              <Check />
+                              Keep B
+                            </Button>
+                          </Hint>
+                        </>
+                      ) : null}
+                      {recommendation.action ? (
+                        <Hint label={descriptor.acceptHint}>
+                          <Button
+                            size="sm"
+                            onClick={() => onRecommendationAction(recommendation.id, 'apply')}
+                          >
+                            <Check />
+                            {descriptor.acceptLabel}
+                          </Button>
+                        </Hint>
+                      ) : null}
+                      <Hint label={descriptor.deferHint}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onRecommendationAction(recommendation.id, 'defer')}
+                        >
+                          <Circle />
+                          Defer
+                        </Button>
+                      </Hint>
+                      <Hint label={descriptor.rejectHint}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onRecommendationAction(recommendation.id, 'reject')}
+                        >
+                          <X />
+                          Reject
+                        </Button>
+                      </Hint>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </ScrollArea>
-        </Panel>
-        <Panel title="Distillation preview" eyebrow="Synthetic memories">
-          <div className="grid gap-2">
-            {distillation.slice(0, 6).map((proposal) => (
-              <div key={proposal.id} className="rounded-md border border-border bg-muted/30 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-foreground">{proposal.concept}</span>
-                  <Badge variant="secondary">
-                    {countLabel(proposal.source_count, 'source', 'sources')}
-                  </Badge>
-                </div>
-                <p className="mt-2 text-sm leading-5 text-muted-foreground">{proposal.reason}</p>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm text-muted-foreground">
-                    ratio {proposal.compression_ratio}
-                  </span>
-                  <Button size="sm" variant="outline" onClick={() => onApplyDistillation(proposal)}>
-                    <Sparkles />
-                    Create proposed
-                  </Button>
-                </div>
-              </div>
-            ))}
-            {!distillation.length ? (
-              <p className="text-sm text-muted-foreground">No distillation candidates yet.</p>
-            ) : null}
-          </div>
-        </Panel>
-        <Panel title="Ignored concepts" eyebrow="Noise map">
-          <div className="flex flex-wrap gap-2">
-            {conceptGraph?.ignoredConcepts.length ? (
-              conceptGraph.ignoredConcepts.map((concept) => (
-                <Badge
-                  key={concept}
-                  className="bg-destructive/10 text-destructive hover:bg-destructive/10"
-                >
-                  {concept}
-                </Badge>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">No ignored concepts yet.</p>
-            )}
-          </div>
         </Panel>
       </div>
     </section>
   )
 }
 
-function EvidenceLinks({ ids, onOpen }: { ids: string[]; onOpen?: (id: string) => void }) {
+function EvidenceLinks({
+  directory,
+  ids,
+  onOpen,
+}: {
+  directory?: Map<string, Memory | SearchResult>
+  ids: string[]
+  onOpen?: (id: string) => void
+}) {
   if (!ids.length) return null
 
   return (
-    <div className="mt-2 flex flex-wrap gap-1">
-      {ids.slice(0, 10).map((id) => (
-        <button
-          key={id}
-          className="rounded-sm bg-background/70 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-          type="button"
-          onClick={() => onOpen?.(id)}
-        >
-          {id}
-        </button>
-      ))}
+    <div className="mt-2 grid gap-1.5">
+      {ids.slice(0, 10).map((id) => {
+        const memory = directory?.get(id)
+        const metadata = memory ? getMetadata(memory) : null
+        const title = memory ? getMemoryTitle(memory.content) : id
+        const subtitle = metadata
+          ? `${metadata.type} · ${metadata.status} · ${formatDate(metadata.updated_at)}`
+          : 'unknown memory (no longer in this store)'
+        return (
+          <Hint
+            key={id}
+            side="top"
+            label={
+              memory ? (
+                <span className="grid gap-1">
+                  <span className="font-mono text-xs opacity-70">{id}</span>
+                  <span className="line-clamp-4 whitespace-pre-wrap">{memory.content}</span>
+                </span>
+              ) : (
+                <span className="font-mono text-xs">{id}</span>
+              )
+            }
+          >
+            <button
+              className="grid gap-0.5 rounded-sm border border-border bg-background/70 px-2 py-1.5 text-left transition hover:border-primary/40 hover:bg-background"
+              disabled={!onOpen}
+              type="button"
+              onClick={() => onOpen?.(id)}
+            >
+              <span className="truncate text-sm font-medium text-foreground">{title}</span>
+              <span className="truncate text-xs text-muted-foreground">{subtitle}</span>
+            </button>
+          </Hint>
+        )
+      })}
+      {ids.length > 10 ? (
+        <span className="text-xs text-muted-foreground">+ {ids.length - 10} more</span>
+      ) : null}
     </div>
   )
 }
@@ -1976,7 +2407,7 @@ function ToggleRow({
   return (
     <button
       className={cn(
-        'flex items-center justify-between gap-4 rounded-md border px-3 py-3 text-left transition',
+        'flex items-center justify-between gap-4 rounded-sm border px-3 py-3 text-left transition',
         active
           ? 'border-primary/35 bg-primary/10 text-primary'
           : 'border-border bg-muted/35 text-foreground hover:bg-muted/60'
@@ -2020,39 +2451,20 @@ function Panel({
   )
 }
 
-function TypeScopeFields({
-  disabled = false,
-  type,
-  scope,
-}: {
-  disabled?: boolean
-  type: string
-  scope: string
-}) {
+function TypeScopeFields({ disabled = false, type }: { disabled?: boolean; type: string }) {
   return (
-    <div className="grid grid-cols-2 gap-3 max-md:grid-cols-1">
-      <Label text="Type">
+    <div className="grid gap-3">
+      <Label
+        text="Type"
+        hint="Category of memory. Determines how PAMH treats it: decision/knowledge/rule/preference are durable; session/task/mistake/pattern have specialized lifecycles."
+      >
         <Select defaultValue={type} disabled={disabled} name="type">
           <SelectTrigger className="w-full border-border bg-background/60 text-foreground">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {memoryTypes.map((item) => (
-              <SelectItem key={item} value={item}>
-                {item}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Label>
-      <Label text="Scope">
-        <Select defaultValue={scope} disabled={disabled} name="scope">
-          <SelectTrigger className="w-full border-border bg-background/60 text-foreground">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {memoryScopes.map((item) => (
-              <SelectItem key={item} value={item}>
+              <SelectItem key={item} value={item} title={typeHints[item]}>
                 {item}
               </SelectItem>
             ))}
@@ -2063,12 +2475,20 @@ function TypeScopeFields({
   )
 }
 
-function Label({ children, text }: { children: ReactNode; text: string }) {
+function Label({ children, text, hint }: { children: ReactNode; text: string; hint?: ReactNode }) {
   return (
     <label className="grid gap-2">
-      <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-        {text}
-      </span>
+      {hint ? (
+        <Hint label={hint}>
+          <span className="w-fit cursor-help text-sm font-semibold uppercase tracking-widest text-muted-foreground underline decoration-dotted underline-offset-4">
+            {text}
+          </span>
+        </Hint>
+      ) : (
+        <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+          {text}
+        </span>
+      )}
       {children}
     </label>
   )
@@ -2107,14 +2527,42 @@ function CountList({ label, values }: { label: string; values: Record<string, nu
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const classes: Record<string, string> = {
-    active: 'bg-primary/12 text-primary',
-    proposed: 'bg-secondary text-primary',
-    archived: 'bg-muted text-muted-foreground',
-    noise: 'bg-accent text-accent-foreground',
-    deleted: 'bg-destructive/10 text-destructive',
+  const tone = getStatusTone(status)
+  return <Badge className={cn('rounded-full border px-2', tone.badge)}>{status}</Badge>
+}
+
+function StatusCount({ status, value }: { status: string; value: number }) {
+  const tone = getStatusTone(status)
+  return (
+    <strong className={cn('rounded-full border px-2 py-0.5 text-xs tabular-nums', tone.badge)}>
+      {value}
+    </strong>
+  )
+}
+
+function getStatusTone(status: string): { badge: string } {
+  const tones: Record<string, { badge: string }> = {
+    active: {
+      badge: 'border-emerald-400/25 bg-emerald-400/12 text-emerald-200 hover:bg-emerald-400/12',
+    },
+    proposed: {
+      badge: 'border-sky-400/25 bg-sky-400/12 text-sky-200 hover:bg-sky-400/12',
+    },
+    archived: {
+      badge: 'border-zinc-400/25 bg-zinc-400/10 text-zinc-300 hover:bg-zinc-400/10',
+    },
+    noise: {
+      badge: 'border-amber-400/25 bg-amber-400/12 text-amber-200 hover:bg-amber-400/12',
+    },
+    deleted: {
+      badge: 'border-rose-400/25 bg-rose-400/12 text-rose-200 hover:bg-rose-400/12',
+    },
   }
-  return <Badge className={cn(classes[status] ?? 'bg-muted text-foreground')}>{status}</Badge>
+  return (
+    tones[status] ?? {
+      badge: 'border-border bg-muted text-foreground hover:bg-muted',
+    }
+  )
 }
 
 function LegendDot({ className, label }: { className: string; label: string }) {
@@ -2211,7 +2659,7 @@ class MemoryGraphView {
     this.container.innerHTML = ''
     if (!conceptGraph?.concepts.length) {
       container.innerHTML =
-        '<p class="grid min-h-112 place-items-center text-sm text-muted-foreground">No strong concepts in the current project view.</p>'
+        '<p class="grid min-h-112 place-items-center text-sm text-muted-foreground">No concepts in the current LLM context.</p>'
       this.resizeObserver = new ResizeObserver(() => undefined)
       return
     }
@@ -2537,10 +2985,14 @@ function groupMemories(
   const groups = new Map<string, Array<Memory | SearchResult>>()
   memories.forEach((memory) => {
     const metadata = getMetadata(memory)
-    const key = `${metadata.type} / ${metadata.scope}`
+    const key = metadata.type
     groups.set(key, [...(groups.get(key) ?? []), memory])
   })
-  return [...groups.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+  return [...groups.entries()].sort((a, b) => {
+    const priorityA = memoryTypePriority.get(a[0]) ?? Number.MAX_SAFE_INTEGER
+    const priorityB = memoryTypePriority.get(b[0]) ?? Number.MAX_SAFE_INTEGER
+    return priorityA - priorityB || b[1].length - a[1].length || a[0].localeCompare(b[0])
+  })
 }
 
 function groupBy<T>(items: T[], getKey: (item: T) => string): Record<string, T[]> {
@@ -2558,22 +3010,6 @@ function getActiveConcept(
   if (!conceptGraph) return null
   if (!focusedConcept) return null
   return conceptGraph.concepts.find((concept) => concept.searchTerm === focusedConcept) ?? null
-}
-
-function getSuggestedTags(conceptGraph: ApiConceptGraph | null, focusedConcept: string): string[] {
-  const concept = getActiveConcept(conceptGraph, focusedConcept)
-  if (concept) {
-    return Array.from(
-      new Set([
-        concept.searchTerm.replace(/\s+/g, '-'),
-        ...concept.evidence.map((item) => item.toLowerCase().replace(/\s+/g, '-')),
-      ])
-    )
-  }
-
-  return (conceptGraph?.concepts ?? [])
-    .slice(0, 8)
-    .map((concept) => concept.searchTerm.replace(/\s+/g, '-'))
 }
 
 function pairKey(a: string, b: string): string {

@@ -14,7 +14,7 @@ This installs the `memory` command.
 
 ```bash
 memory init
-memory add -t decision -s project -c "Use SQLite for the local memory index"
+memory add -t decision -c "Use SQLite for the local memory index"
 memory search "SQLite"
 memory server start
 ```

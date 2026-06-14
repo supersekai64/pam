@@ -8,8 +8,7 @@ No. PAMH gives users an independent memory layer that can be used across LLMs, e
 
 By default:
 
-- global memory: `~/ai-memory`
-- project memory: `./.ai-memory`
+- project memory: `./.ai-memory` or the nearest parent `.ai-memory`
 
 ## Is SQLite the source of truth?
 
@@ -69,7 +68,7 @@ See [docs/capture-modes.md](capture-modes.md) for configuration details.
 Example manual capture:
 
 ```bash
-memory add --project -t session -s project --tags "opencode" -c "Implemented the initial React page with Tailwind and shadcn."
+memory add -t session --tags "opencode" -c "Implemented the initial React page with Tailwind and shadcn."
 ```
 
 ## Should I commit `.ai-memory` to Git?
@@ -103,9 +102,8 @@ memory init
 
 Use `memory status` to see which memory directory is currently active.
 
-## What's the difference between global and project memory?
+## Is there a global memory store?
 
-- **Global memory** (`~/ai-memory/`): Cross-project preferences, patterns, and reusable knowledge. Use `memory init global` to create it.
-- **Project memory** (`.ai-memory/`): Project-specific decisions, architecture, sessions, and tasks. Use `memory init` to create it.
+No. PAMH is project-only. Runtime clients do not provide a scope; `scope: global` and `memory init global` are not supported. Existing Markdown with legacy scopes is normalized to `project` when read.
 
-Both can be used together. Project memory is automatically discovered by walking up the directory tree.
+Project memory is automatically discovered by walking up the directory tree.

@@ -6,39 +6,28 @@ import { compileContext, writeCompiledContext } from './context.js'
 import { createMemory, initProjectMemory } from './storage.js'
 
 describe('context', () => {
-  let globalDir: string
   let projectDir: string
 
   beforeEach(async () => {
-    globalDir = await mkdtemp(join(tmpdir(), 'pamh-context-global-'))
     projectDir = await mkdtemp(join(tmpdir(), 'pamh-context-project-'))
     await initProjectMemory(projectDir)
   })
 
   afterEach(async () => {
-    await rm(globalDir, { recursive: true, force: true })
     await rm(projectDir, { recursive: true, force: true })
   })
 
   describe('compileContext', () => {
-    it('should compile context from global and project memories', async () => {
-      await createMemory(globalDir, {
-        type: 'preference',
-        scope: 'global',
-        content: 'Global preference',
-      })
-
+    it('should compile context from project memories', async () => {
       await createMemory(projectDir, {
         type: 'decision',
         scope: 'project',
         content: 'Project decision',
       })
 
-      const compiled = await compileContext(globalDir, projectDir)
+      const compiled = await compileContext(projectDir)
 
-      expect(compiled.sources.global.length).toBe(1)
       expect(compiled.sources.project.length).toBe(1)
-      expect(compiled.content).toContain('Global preference')
       expect(compiled.content).toContain('Project decision')
       expect(compiled.tokenCount).toBeGreaterThan(0)
     })
@@ -52,22 +41,9 @@ describe('context', () => {
         })
       }
 
-      const compiled = await compileContext(globalDir, projectDir, { maxTokens: 100 })
+      const compiled = await compileContext(projectDir, { maxTokens: 100 })
 
       expect(compiled.tokenCount).toBeLessThanOrEqual(100)
-    })
-
-    it('should exclude global memory when includeGlobal is false', async () => {
-      await createMemory(globalDir, {
-        type: 'preference',
-        scope: 'global',
-        content: 'Global preference',
-      })
-
-      const compiled = await compileContext(globalDir, projectDir, { includeGlobal: false })
-
-      expect(compiled.sources.global.length).toBe(0)
-      expect(compiled.content).not.toContain('Global preference')
     })
 
     it('should exclude project memory when includeProject is false', async () => {
@@ -77,16 +53,15 @@ describe('context', () => {
         content: 'Project decision',
       })
 
-      const compiled = await compileContext(globalDir, projectDir, { includeProject: false })
+      const compiled = await compileContext(projectDir, { includeProject: false })
 
       expect(compiled.sources.project.length).toBe(0)
       expect(compiled.content).not.toContain('Project decision')
     })
 
     it('should handle empty memory stores', async () => {
-      const compiled = await compileContext(globalDir, projectDir)
+      const compiled = await compileContext(projectDir)
 
-      expect(compiled.sources.global.length).toBe(0)
       expect(compiled.sources.project.length).toBe(0)
       expect(compiled.content).toContain('# Compiled Context')
     })
@@ -107,7 +82,7 @@ describe('context', () => {
       const { deleteMemory } = await import('./storage.js')
       await deleteMemory(projectDir, memory.metadata.id)
 
-      const compiled = await compileContext(globalDir, projectDir)
+      const compiled = await compileContext(projectDir)
 
       expect(compiled.sources.project.length).toBe(1)
       expect(compiled.content).toContain('Another memory')
@@ -123,7 +98,7 @@ describe('context', () => {
         content: 'Test decision',
       })
 
-      const compiled = await compileContext(globalDir, projectDir)
+      const compiled = await compileContext(projectDir)
       const outputPath = await writeCompiledContext(projectDir, compiled)
 
       expect(outputPath).toContain('compiled-context.md')

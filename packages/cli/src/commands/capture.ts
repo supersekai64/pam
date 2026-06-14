@@ -2,7 +2,6 @@ import { Command } from 'commander'
 import {
   loadAutoCaptureConfig,
   saveAutoCaptureConfig,
-  getGlobalMemoryPath,
   getProjectMemoryPath,
   type AutoCaptureMode,
 } from 'pamh-core'
@@ -13,9 +12,8 @@ export function registerCaptureCommand(program: Command) {
   capture
     .command('show')
     .description('Show current auto-capture configuration')
-    .option('--project', 'Use project memory instead of global')
-    .action(async (options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+    .action(async () => {
+      const basePath = getProjectMemoryPath(process.cwd())
       const config = await loadAutoCaptureConfig(basePath)
 
       console.log(`Mode: ${config.mode}`)
@@ -36,14 +34,13 @@ export function registerCaptureCommand(program: Command) {
   capture
     .command('set <mode>')
     .description('Set auto-capture mode (manual, assisted, auto)')
-    .option('--project', 'Use project memory instead of global')
-    .action(async (mode, options) => {
+    .action(async (mode) => {
       if (!['manual', 'assisted', 'auto'].includes(mode)) {
         console.error('Invalid mode. Must be one of: manual, assisted, auto')
         process.exit(1)
       }
 
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+      const basePath = getProjectMemoryPath(process.cwd())
       const config = await loadAutoCaptureConfig(basePath)
       config.mode = mode as AutoCaptureMode
 

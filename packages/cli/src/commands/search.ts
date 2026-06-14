@@ -2,7 +2,6 @@ import { Command } from 'commander'
 import {
   MemoryIndex,
   SemanticIndex,
-  getGlobalMemoryPath,
   getProjectMemoryPath,
   listMemories,
   readMemory,
@@ -13,13 +12,11 @@ export function registerSearchCommand(program: Command) {
     .command('search [query]')
     .description('Search memories')
     .option('--type <type>', 'Filter by type')
-    .option('--scope <scope>', 'Filter by scope')
     .option('--tag <tag>', 'Filter by tag')
     .option('--limit <limit>', 'Maximum results', '50')
     .option('--semantic', 'Use semantic vector search')
-    .option('--project', 'Use project memory instead of global')
     .action(async (query, options) => {
-      const basePath = options.project ? getProjectMemoryPath(process.cwd()) : getGlobalMemoryPath()
+      const basePath = getProjectMemoryPath(process.cwd())
       const limit = parseInt(options.limit, 10)
 
       if (options.semantic) {
@@ -47,7 +44,6 @@ export function registerSearchCommand(program: Command) {
           const memory = await readMemory(basePath, result.id)
           if (!memory || memory.metadata.status !== 'active') continue
           if (options.type && memory.metadata.type !== options.type) continue
-          if (options.scope && memory.metadata.scope !== options.scope) continue
           if (options.tag && !memory.metadata.tags.includes(options.tag)) continue
           hydratedResults.push({ memory, score: result.score })
         }
@@ -78,7 +74,6 @@ export function registerSearchCommand(program: Command) {
       const results = index.search({
         query,
         type: options.type,
-        scope: options.scope,
         tag: options.tag,
         limit,
       })

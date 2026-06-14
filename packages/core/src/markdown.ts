@@ -1,10 +1,10 @@
 import matter from 'gray-matter'
 import {
-  assertMemoryScope,
   assertMemoryStatus,
-  assertMemoryType,
   type Memory,
   type MemoryMetadata,
+  normalizeStoredMemoryScope,
+  normalizeStoredMemoryType,
 } from './types.js'
 
 export function parseMarkdown(raw: string): Memory {
@@ -12,8 +12,8 @@ export function parseMarkdown(raw: string): Memory {
 
   const metadata: MemoryMetadata = {
     id: String(data.id ?? ''),
-    type: assertMemoryType(data.type ?? 'knowledge'),
-    scope: assertMemoryScope(data.scope ?? 'global'),
+    type: normalizeStoredMemoryType(data.type ?? 'knowledge'),
+    scope: normalizeStoredMemoryScope(data.scope),
     status: assertMemoryStatus(data.status ?? 'active'),
     created_at: data.created_at ?? new Date().toISOString(),
     updated_at: data.updated_at ?? new Date().toISOString(),
