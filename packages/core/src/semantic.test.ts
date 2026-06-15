@@ -4,6 +4,25 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { SemanticIndex } from './semantic.js'
 import { initProjectMemory, createMemory } from './storage.js'
+import type { EmbeddingProvider } from './embedding.js'
+
+class TestEmbeddingProvider implements EmbeddingProvider {
+  generate(text: string): Promise<number[]> {
+    const normalized = text.toLowerCase()
+    return Promise.resolve([
+      normalized.includes('javascript') || normalized.includes('typescript') ? 1 : 0,
+      normalized.includes('python') ? 1 : 0,
+      normalized.includes('framework') || normalized.includes('react') || normalized.includes('vue')
+        ? 1
+        : 0,
+      normalized.includes('test') ? 1 : 0,
+    ])
+  }
+
+  getDimensions(): number {
+    return 4
+  }
+}
 
 describe('semantic', () => {
   let tempDir: string
@@ -30,7 +49,7 @@ describe('semantic', () => {
         content: 'TypeScript is a typed superset of JavaScript',
       })
 
-      const index = new SemanticIndex(basePath)
+      const index = new SemanticIndex(basePath, new TestEmbeddingProvider())
       await index.indexMemory(memory.metadata.id, memory.content)
       index.close()
     }, 30000)
@@ -48,7 +67,7 @@ describe('semantic', () => {
         content: 'Python is a high-level programming language',
       })
 
-      const index = new SemanticIndex(basePath)
+      const index = new SemanticIndex(basePath, new TestEmbeddingProvider())
       await index.indexMemory(memory1.metadata.id, memory1.content)
       await index.indexMemory(memory2.metadata.id, memory2.content)
 
@@ -68,7 +87,7 @@ describe('semantic', () => {
         content: 'Test memory to be removed',
       })
 
-      const index = new SemanticIndex(basePath)
+      const index = new SemanticIndex(basePath, new TestEmbeddingProvider())
       await index.indexMemory(memory.metadata.id, memory.content)
 
       const resultsBefore = await index.search('test memory', 10)
@@ -100,7 +119,7 @@ describe('semantic', () => {
         memories.push(memory)
       }
 
-      const index = new SemanticIndex(basePath)
+      const index = new SemanticIndex(basePath, new TestEmbeddingProvider())
       for (const memory of memories) {
         await index.indexMemory(memory.metadata.id, memory.content)
       }

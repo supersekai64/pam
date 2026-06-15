@@ -1,5 +1,15 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { createEmbeddingProvider, LocalEmbeddingProvider } from './embedding.js'
+
+vi.mock('@xenova/transformers', () => ({
+  env: {
+    allowLocalModels: true,
+    useBrowserCache: true,
+  },
+  pipeline: vi.fn(async () => async (text: string) => ({
+    data: Array.from({ length: 384 }, (_, index) => text.length + index / 1000),
+  })),
+}))
 
 describe('embedding', () => {
   describe('createEmbeddingProvider', () => {
