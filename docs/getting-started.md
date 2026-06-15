@@ -17,6 +17,10 @@ This installs the `memory` command globally.
 
 If npm stays quiet during the first install, use `npm install -g pamh-cli --loglevel=info` to show dependency progress.
 
+On Windows, stop any running PAMH UI or MCP server before updating the global
+package. Native SQLite files can stay locked while `memory ui` or
+`memory server start` is running, which makes npm fail with `EBUSY`.
+
 For a project-local install that bootstraps PAMH automatically:
 
 ```bash

@@ -1,5 +1,4 @@
 import { Command } from 'commander'
-import { startPamhMcpServer } from '../mcp/server.js'
 
 export function registerServerCommand(program: Command) {
   const server = program.command('server').description('Run PAMH servers')
@@ -8,6 +7,7 @@ export function registerServerCommand(program: Command) {
     .command('start')
     .description('Start the PAMH MCP server over stdio')
     .action(async () => {
+      const { startPamhMcpServer } = await import('../mcp/server.js')
       await startPamhMcpServer({ cwd: process.cwd() })
     })
 }
