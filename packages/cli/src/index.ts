@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander'
-import { VERSION } from 'pamh-core'
 import { registerInitCommand } from './commands/init.js'
 import { registerAddCommand } from './commands/add.js'
 import { registerListCommand } from './commands/list.js'
@@ -33,10 +32,11 @@ import { registerDebugCommand } from './commands/debug.js'
 import { registerHookCommand } from './commands/hook.js'
 import { registerIntelligenceCommand } from './commands/intelligence.js'
 import { registerUpgradeCommand } from './commands/upgrade.js'
+import { getCliVersion } from './version.js'
 
 const program = new Command()
 
-program.name('memory').description('Portable AI Memory Hub CLI').version(VERSION)
+program.name('memory').description('Portable AI Memory Hub CLI').version(getCliVersion())
 
 registerInitCommand(program)
 registerAddCommand(program)
