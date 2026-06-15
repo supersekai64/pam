@@ -5,6 +5,7 @@ import { generateId } from './id.js'
 import type { Handoff, HandoffStatus } from './types.js'
 
 const HANDOFFS_DIR = 'handoffs'
+let lastHandoffCreatedAtMs = 0
 
 /**
  * Begin a handoff (create an open handoff for the next agent)
@@ -26,7 +27,7 @@ export async function beginHandoff(
   }
 
   const id = generateId()
-  const now = new Date().toISOString()
+  const now = createMonotonicTimestamp()
 
   const handoff: Handoff = {
     id,
@@ -182,6 +183,13 @@ function matchesProject(handoff: Handoff, projectPath?: string): boolean {
 function compareHandoffsDesc(a: Handoff, b: Handoff): number {
   const timestampCompare = b.created_at.localeCompare(a.created_at)
   return timestampCompare || b.id.localeCompare(a.id)
+}
+
+function createMonotonicTimestamp(): string {
+  const now = Date.now()
+  const next = Math.max(now, lastHandoffCreatedAtMs + 1)
+  lastHandoffCreatedAtMs = next
+  return new Date(next).toISOString()
 }
 
 function assertSafeFileId(id: string, name: string): void {
