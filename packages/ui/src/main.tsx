@@ -55,6 +55,67 @@ type MemoryAction =
 
 const PROJECT_STORE: Store = 'project'
 
+const EMPTY_STATS: Stats = {
+  total: 0,
+  active: 0,
+  deleted: 0,
+  archived: 0,
+  proposed: 0,
+  noise: 0,
+  byType: {},
+  byScope: {},
+  tags: {},
+}
+
+const EMPTY_STATS_RESPONSE: StatsResponse = {
+  stats: EMPTY_STATS,
+  rawStats: EMPTY_STATS,
+  rawTotalMemories: 0,
+  excludedNoiseMemories: 0,
+}
+
+const EMPTY_CONCEPT_GRAPH: ApiConceptGraph = {
+  totalMemories: 0,
+  rawTotalMemories: 0,
+  excludedNoiseMemories: 0,
+  ignoredConcepts: [],
+  calculation: '',
+  concepts: [],
+  edges: [],
+  exclusions: [],
+}
+
+const EMPTY_CONTEXT_PREVIEW: ContextPreview = {
+  content: '',
+  tokenEstimate: 0,
+  memoryCount: 0,
+  sources: [],
+  topConcepts: [],
+  generatedAt: '',
+  exclusions: [],
+}
+
+const EMPTY_RECOMMENDATIONS: RecommendationsResponse = {
+  recommendations: [],
+  metrics: {
+    total_memories: 0,
+    active_memories: 0,
+    proposed_recommendations: 0,
+    source_preservation_rate: 1,
+    top_concept_count: 0,
+  },
+}
+
+const EMPTY_KNOWLEDGE_GRAPH: KnowledgeGraphResponse = {
+  entities: [],
+  relations: [],
+  metrics: {
+    entity_count: 0,
+    relation_count: 0,
+    evidence_coverage: 0,
+  },
+}
+
 interface MemoryMetadata {
   id: string
   type: string
@@ -502,6 +563,23 @@ function App() {
     setMessage('')
   }
 
+  const clearLoadedProjectState = () => {
+    setSelected(null)
+    setSelectedId(null)
+    setIsCreating(false)
+    setFocusedConcept('')
+    setQuery('')
+    setStatus('active')
+    setMemories([])
+    setMemoryTotal(0)
+    setConceptGraph(EMPTY_CONCEPT_GRAPH)
+    setContextPreview(EMPTY_CONTEXT_PREVIEW)
+    setStatsResponse(EMPTY_STATS_RESPONSE)
+    setRecommendations(EMPTY_RECOMMENDATIONS)
+    setKnowledgeGraph(EMPTY_KNOWLEDGE_GRAPH)
+    setMemoryDirectory(new Map())
+  }
+
   const changeWorkspaceView = (view: WorkspaceView) => {
     if (view !== workspaceView) {
       clearConceptFocus()
@@ -671,11 +749,7 @@ function App() {
         body: JSON.stringify({ confirm: 'RESET' }),
       }
     )
-    setSelected(null)
-    setSelectedId(null)
-    setIsCreating(false)
-    setFocusedConcept('')
-    setQuery('')
+    clearLoadedProjectState()
     setMessage(
       response.removed
         ? `Project memory reset (${response.basePath}).`
