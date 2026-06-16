@@ -136,6 +136,9 @@ memory show <id> [options]
 
 **Options:**
 
+- `--physical` - Remove the Markdown file and index row after writing a local backup
+- `--yes` - Required confirmation for physical deletion in non-interactive runs
+
 **Example:**
 
 ```bash
@@ -174,7 +177,9 @@ memory delete <id> [options]
 memory delete mem_abc123
 ```
 
-By default, deletion is logical (status set to `deleted`). Use `--physical` only when you want to remove the Markdown file.
+By default, deletion is logical (status set to `deleted`). Use `--physical`
+only when you want to remove the Markdown file. Physical deletion writes a
+recoverable `.ai-memory/backups/*.bak` copy first.
 
 ### Archive Memory
 
@@ -213,6 +218,10 @@ memory search --tag "architecture"
 memory search "database" --tag "sql" --limit 10
 memory search "frontend framework" --semantic
 ```
+
+Lexical search runs exact matching first. If there are no exact hits, PAMH
+falls back to related tags and synonyms, so natural queries such as
+`memory search "database choice"` can still find a stored PostgreSQL decision.
 
 Semantic search uses either optional local embeddings or OpenAI embeddings. For local embeddings with the global CLI, install `@xenova/transformers` globally once:
 
@@ -258,7 +267,32 @@ memory doctor stats [options]
 
 Show memory statistics (counts by status, type, and tags).
 
+```bash
+memory doctor integrations [options]
+```
+
+Check first-run readiness: `.ai-memory`, generated agent instructions, MCP
+configs, hooks, and stale unsupported flags such as `--project`.
+
 **Options:**
+
+### Review Queue
+
+```bash
+memory review [options]
+```
+
+Show proposed memories waiting for approval.
+
+### Smoke Test
+
+```bash
+memory smoke-test agent [options]
+```
+
+Create a proposed test memory and verify that the local store and review queue
+are reachable. Approve the printed memory ID, then run the printed search or
+context command to confirm recall.
 
 ### Redact Memory
 
@@ -282,7 +316,9 @@ memory redact mem_abc123
 memory restore <id> [options]
 ```
 
-Restore a logically deleted memory (status back to `active`).
+Restore a logically deleted memory (status back to `active`). If the Markdown
+file was physically deleted, PAMH restores the latest matching backup from
+`.ai-memory/backups/`.
 
 **Options:**
 
@@ -334,6 +370,7 @@ Import memories from a file.
 **Options:**
 
 - `-f, --format <format>` - Import format: `zip`, `json`, `markdown` (default: `json`)
+- `--collision <mode>` - Existing-ID handling: `skip`, `replace`, `rename`, or `supersede`
 
 **Examples:**
 
@@ -341,6 +378,7 @@ Import memories from a file.
 memory import backup.json
 memory import backup.zip --format zip
 memory import memory.md --format markdown
+memory import team-backup.json --collision supersede
 ```
 
 ### Context

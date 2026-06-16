@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { SemanticIndex, readMemory, getProjectMemoryPath } from 'pamh-core'
+import { SemanticIndex, listMemories, readMemory, getProjectMemoryPath } from 'pamh-core'
 
 export function registerSemanticCommand(program: Command) {
   program
@@ -15,6 +15,14 @@ export function registerSemanticCommand(program: Command) {
 
       try {
         const semanticIndex = new SemanticIndex(basePath)
+        const memories = (await listMemories(basePath)).filter(
+          (memory) => memory.metadata.status === 'active'
+        )
+
+        for (const memory of memories) {
+          await semanticIndex.indexMemory(memory.metadata.id, memory.content)
+        }
+
         const results = await semanticIndex.search(query, limit)
 
         if (results.length === 0) {

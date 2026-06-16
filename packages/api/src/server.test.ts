@@ -201,20 +201,161 @@ describe('local API concepts', () => {
 
     const distilled = await applyDistillationProposal(memoryPath, proposal)
 
-    const { baseUrl, close } = await startTestServer({ cwd: tempDir })
+    const { baseUrl, close, token } = await startTestServer({ cwd: tempDir })
     try {
       const beforeApprove = await getJson<ContextPreview>(
         `${baseUrl}/api/context-preview?store=project&maxMemories=6`
       )
       expect(beforeApprove.sources.map((source) => source.id)).not.toContain(distilled.metadata.id)
 
-      await postJson(`${baseUrl}/api/memories/${distilled.metadata.id}/approve?store=project`)
+      await postJson(
+        `${baseUrl}/api/memories/${distilled.metadata.id}/approve?store=project`,
+        token
+      )
 
       const afterApprove = await getJson<ContextPreview>(
         `${baseUrl}/api/context-preview?store=project&maxMemories=6`
       )
       expect(afterApprove.sources.map((source) => source.id)).toContain(distilled.metadata.id)
       expect(afterApprove.content).toContain('Agent-Codex is a recurring project signal')
+    } finally {
+      await close()
+    }
+  })
+
+  it('identifies the PAMH API through health metadata', async () => {
+    const { baseUrl, close } = await startTestServer({ cwd: tempDir })
+    try {
+      const health = await getJson<{
+        ok: boolean
+        name: string
+        projectPath: string
+        memoryPath: string
+      }>(`${baseUrl}/api/health`)
+
+      expect(health.ok).toBe(true)
+      expect(health.name).toBe('pamh')
+      expect(health.projectPath).toBe(tempDir)
+      expect(health.memoryPath).toBe(memoryPath)
+    } finally {
+      await close()
+    }
+  })
+
+  it('rejects mutable requests without the PAMH session token', async () => {
+    const { baseUrl, close } = await startTestServer({ cwd: tempDir })
+    try {
+      const response = await fetch(`${baseUrl}/api/memories?store=project`, {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'knowledge',
+          scope: 'project',
+          content: 'No token',
+        }),
+      })
+
+      expect(response.status).toBe(403)
+      await expect(response.json()).resolves.toMatchObject({
+        error: 'Missing or invalid PAMH session token.',
+      })
+    } finally {
+      await close()
+    }
+  })
+
+  it('validates memory creation payloads before calling the core store', async () => {
+    const { baseUrl, close, token } = await startTestServer({ cwd: tempDir })
+    try {
+      const invalid = await fetch(`${baseUrl}/api/memories?store=project`, {
+        method: 'POST',
+        headers: { 'x-pamh-session': token },
+        body: JSON.stringify({
+          type: 'knowledge',
+          scope: 'project',
+          content: 'Invalid tags',
+          tags: 'not-an-array',
+        }),
+      })
+
+      expect(invalid.status).toBe(400)
+      await expect(invalid.json()).resolves.toMatchObject({
+        error: 'Field "tags" must be an array of strings when provided.',
+      })
+
+      const valid = await postJson<{ memory: { metadata: { id: string } } }>(
+        `${baseUrl}/api/memories?store=project`,
+        token,
+        {
+          type: 'knowledge',
+          scope: 'project',
+          content: 'Valid API memory',
+          tags: ['api'],
+        }
+      )
+      expect(valid.memory.metadata.id).toMatch(/^mem_/)
+    } finally {
+      await close()
+    }
+  })
+
+  it('validates memory update payloads before mutating', async () => {
+    const memory = await createMemory(memoryPath, {
+      type: 'knowledge',
+      scope: 'project',
+      content: 'Original',
+    })
+    const { baseUrl, close, token } = await startTestServer({ cwd: tempDir })
+    try {
+      const response = await fetch(`${baseUrl}/api/memories/${memory.metadata.id}?store=project`, {
+        method: 'PATCH',
+        headers: { 'x-pamh-session': token },
+        body: JSON.stringify({ status: 'unknown' }),
+      })
+
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toMatchObject({
+        error: 'Field "status" must be a valid memory status when provided.',
+      })
+    } finally {
+      await close()
+    }
+  })
+
+  it('rejects cross-origin mutable requests', async () => {
+    const { baseUrl, close, token } = await startTestServer({ cwd: tempDir })
+    try {
+      const response = await fetch(`${baseUrl}/api/memories?store=project`, {
+        method: 'POST',
+        headers: {
+          origin: 'http://example.test',
+          'x-pamh-session': token,
+        },
+        body: JSON.stringify({
+          type: 'knowledge',
+          scope: 'project',
+          content: 'Wrong origin',
+        }),
+      })
+
+      expect(response.status).toBe(403)
+      await expect(response.json()).resolves.toMatchObject({
+        error: 'Cross-origin mutation blocked.',
+      })
+    } finally {
+      await close()
+    }
+  })
+
+  it('hides the destructive debug reset endpoint by default', async () => {
+    const { baseUrl, close, token } = await startTestServer({ cwd: tempDir })
+    try {
+      const response = await fetch(`${baseUrl}/api/debug/reset?store=project`, {
+        method: 'POST',
+        headers: { 'x-pamh-session': token },
+        body: JSON.stringify({ confirm: 'RESET' }),
+      })
+
+      expect(response.status).toBe(404)
     } finally {
       await close()
     }
@@ -237,8 +378,9 @@ interface ContextPreview {
 
 async function startTestServer(
   options: LocalApiServerOptions
-): Promise<{ baseUrl: string; close: () => Promise<void> }> {
-  const server = createLocalApiServer(options)
+): Promise<{ baseUrl: string; close: () => Promise<void>; token: string }> {
+  const token = options.sessionToken ?? 'test-session-token'
+  const server = createLocalApiServer({ ...options, sessionToken: token })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
     server.listen(0, '127.0.0.1', () => {
@@ -250,6 +392,7 @@ async function startTestServer(
   return {
     baseUrl: `http://127.0.0.1:${address.port}`,
     close: () => new Promise((resolve) => server.close(() => resolve())),
+    token,
   }
 }
 
@@ -259,8 +402,16 @@ async function getJson<T>(url: string): Promise<T> {
   return (await response.json()) as T
 }
 
-async function postJson<T = unknown>(url: string): Promise<T> {
-  const response = await fetch(url, { method: 'POST' })
+async function postJson<T = unknown>(
+  url: string,
+  token: string,
+  body?: Record<string, unknown>
+): Promise<T> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'x-pamh-session': token },
+    body: body ? JSON.stringify(body) : undefined,
+  })
   expect(response.ok).toBe(true)
   return (await response.json()) as T
 }

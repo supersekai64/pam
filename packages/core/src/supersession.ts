@@ -54,6 +54,7 @@ export async function supersedeMemory(
       tags: newInput.tags ?? [],
       source: newInput.source ?? 'manual',
       supersedes: oldId,
+      source_ids: newInput.source_ids,
       salience,
       access_count: 0,
       last_accessed_at: now,

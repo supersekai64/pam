@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { createReadStream, existsSync } from 'node:fs'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
@@ -11,6 +12,7 @@ import {
   approveMemory,
   archiveMemory,
   buildKnowledgeGraph,
+  composeContextSources as composeCoreContextSources,
   createMemory,
   deferRecommendation,
   deleteMemory,
@@ -28,6 +30,10 @@ import {
   seedIntelligenceEvaluationDataset,
   restoreMemory,
   updateMemory,
+  isMemoryScope,
+  isMemoryStatus,
+  isMemoryType,
+  matchesNaturalSearch,
   type CreateMemoryInput,
   type Memory,
   type SearchResult,
@@ -38,11 +44,13 @@ export interface LocalApiServerOptions {
   cwd?: string
   host?: string
   port?: number
+  sessionToken?: string
   staticDir?: string
 }
 
 export interface LocalApiServer {
   server: Server
+  sessionToken: string
   url: string
   close: () => Promise<void>
 }
@@ -139,41 +147,18 @@ function resolveDefaultStaticDir(): string {
 const DEFAULT_STATIC_DIR = resolveDefaultStaticDir()
 const NOISE_CONFIG_FILE = 'ui-noise.json'
 const PROJECT_SCOPE = 'project'
-const MAX_GENERAL_CONTEXT_SESSIONS = 0
-const MAX_FOCUSED_CONTEXT_SESSIONS = 4
+const PAMH_HEALTH_NAME = 'pamh'
+const SESSION_HEADER = 'x-pamh-session'
 const GENERAL_CONTEXT_IGNORED_CONCEPTS = ['migration', 'phase-2', 'pnpm', 'scope', 'project-only']
-
-const CONTEXT_TYPE_WEIGHTS: Record<string, number> = {
-  rule: 1000,
-  decision: 930,
-  preference: 900,
-  knowledge: 830,
-  mistake: 730,
-  task: 700,
-  pattern: 660,
-  client: 600,
-  session: 160,
-}
-
-const CONTEXT_SECTION_TITLES: Record<string, string> = {
-  rule: 'Current Project Rules',
-  decision: 'Active Decisions',
-  preference: 'Durable Preferences',
-  knowledge: 'Project Knowledge',
-  mistake: 'Known Pitfalls',
-  task: 'Open Tasks',
-  pattern: 'Reusable Patterns',
-  client: 'Client Context',
-  session: 'Recent Activity',
-}
 
 export function createLocalApiServer(options: LocalApiServerOptions = {}): Server {
   const cwd = options.cwd ?? process.cwd()
+  const sessionToken = options.sessionToken ?? generateSessionToken()
   const staticDir = options.staticDir ?? DEFAULT_STATIC_DIR
 
   return createServer(async (request, response) => {
     try {
-      await handleRequest(request, response, cwd, staticDir)
+      await handleRequest(request, response, cwd, staticDir, sessionToken)
     } catch (error) {
       sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) })
     }
@@ -185,7 +170,8 @@ export async function startLocalApiServer(
 ): Promise<LocalApiServer> {
   const host = options.host ?? DEFAULT_HOST
   const port = options.port ?? DEFAULT_PORT
-  const server = createLocalApiServer(options)
+  const sessionToken = options.sessionToken ?? generateSessionToken()
+  const server = createLocalApiServer({ ...options, sessionToken })
 
   await new Promise<void>((resolveServer, rejectServer) => {
     server.once('error', rejectServer)
@@ -197,6 +183,7 @@ export async function startLocalApiServer(
 
   return {
     server,
+    sessionToken,
     url: `http://${host}:${port}`,
     close: () => new Promise((resolveClose) => server.close(() => resolveClose())),
   }
@@ -206,13 +193,14 @@ async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
   cwd: string,
-  staticDir: string
+  staticDir: string,
+  sessionToken: string
 ): Promise<void> {
   const method = request.method ?? 'GET'
   const url = new URL(request.url ?? '/', 'http://localhost')
 
   if (url.pathname.startsWith('/api/')) {
-    await handleApiRequest(request, response, method, url, cwd)
+    await handleApiRequest(request, response, method, url, cwd, sessionToken)
     return
   }
 
@@ -224,10 +212,27 @@ async function handleApiRequest(
   response: ServerResponse,
   method: string,
   url: URL,
-  cwd: string
+  cwd: string,
+  sessionToken: string
 ): Promise<void> {
+  const basePath = getProjectMemoryPath(cwd)
+
   if (method === 'GET' && url.pathname === '/api/health') {
-    sendJson(response, 200, { ok: true })
+    sendJson(response, 200, {
+      ok: true,
+      name: PAMH_HEALTH_NAME,
+      projectPath: cwd,
+      memoryPath: basePath,
+    })
+    return
+  }
+
+  if (method === 'GET' && url.pathname === '/api/session') {
+    sendJson(response, 200, { token: sessionToken })
+    return
+  }
+
+  if (isMutableMethod(method) && !authorizeMutableRequest(request, response, sessionToken)) {
     return
   }
 
@@ -243,9 +248,12 @@ async function handleApiRequest(
     return
   }
 
-  const basePath = getProjectMemoryPath(cwd)
-
   if (method === 'POST' && url.pathname === '/api/debug/reset') {
+    if (process.env.PAMH_ENABLE_DEBUG_RESET !== '1') {
+      sendJson(response, 404, { error: 'Not found' })
+      return
+    }
+
     const body = (await readJson(request)) as { confirm?: string } | null
     if (body?.confirm !== 'RESET') {
       sendJson(response, 400, {
@@ -347,7 +355,7 @@ async function handleApiRequest(
     const noiseConfig = await readNoiseConfig(basePath)
     const view = getVisibleMemories(rawMemories, { includeNoise })
     const ignoredConcepts = getContextIgnoredConcepts(query, noiseConfig.ignoredConcepts)
-    const composition = composeContextSources(view.memories, query, maxMemories)
+    const composition = composeCoreContextSources(view.memories, query, maxMemories)
     const conceptGraph = filterContextConceptGraph(
       buildConceptGraph(
         composition.selected.map((source) => source.memory),
@@ -522,8 +530,10 @@ async function handleApiRequest(
   }
 
   if (method === 'POST' && url.pathname === '/api/memories') {
-    const body = (await readJson(request)) as CreateMemoryInput
-    const memory = await createMemory(basePath, body)
+    const parsed = parseCreateMemoryPayload(await readJson(request))
+    if (!parsed.ok) return sendJson(response, 400, { error: parsed.error })
+
+    const memory = await createMemory(basePath, parsed.value)
     sendJson(response, 201, { memory })
     return
   }
@@ -543,8 +553,10 @@ async function handleApiRequest(
     }
 
     if (method === 'PATCH' && !action) {
-      const body = (await readJson(request)) as UpdateMemoryInput
-      const memory = await updateMemory(basePath, id, body)
+      const parsed = parseUpdateMemoryPayload(await readJson(request))
+      if (!parsed.ok) return sendJson(response, 400, { error: parsed.error })
+
+      const memory = await updateMemory(basePath, id, parsed.value)
       if (!memory) return sendJson(response, 404, notFound(id))
       sendJson(response, 200, { memory: normalizeNoiseMemory(memory) })
       return
@@ -638,6 +650,52 @@ function sendJson(response: ServerResponse, status: number, body: unknown): void
   response.end(JSON.stringify(body))
 }
 
+function generateSessionToken(): string {
+  return randomBytes(24).toString('base64url')
+}
+
+function isMutableMethod(method: string): boolean {
+  return method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE'
+}
+
+function authorizeMutableRequest(
+  request: IncomingMessage,
+  response: ServerResponse,
+  sessionToken: string
+): boolean {
+  if (!isSameOriginRequest(request)) {
+    sendJson(response, 403, { error: 'Cross-origin mutation blocked.' })
+    return false
+  }
+
+  const headerValue = request.headers[SESSION_HEADER]
+  const token = Array.isArray(headerValue) ? headerValue[0] : headerValue
+  if (token !== sessionToken) {
+    sendJson(response, 403, { error: 'Missing or invalid PAMH session token.' })
+    return false
+  }
+
+  return true
+}
+
+function isSameOriginRequest(request: IncomingMessage): boolean {
+  const origin = request.headers.origin
+  if (!origin) return true
+
+  const host = request.headers.host
+  if (!host) return false
+
+  try {
+    const parsedOrigin = new URL(origin)
+    return (
+      parsedOrigin.host === host &&
+      (parsedOrigin.protocol === 'http:' || parsedOrigin.protocol === 'https:')
+    )
+  } catch {
+    return false
+  }
+}
+
 async function readJson(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = []
   for await (const chunk of request) {
@@ -646,6 +704,147 @@ async function readJson(request: IncomingMessage): Promise<unknown> {
 
   if (chunks.length === 0) return {}
   return JSON.parse(Buffer.concat(chunks).toString('utf-8'))
+}
+
+type ValidationResult<T> = { ok: true; value: T } | { ok: false; error: string }
+
+function parseCreateMemoryPayload(value: unknown): ValidationResult<CreateMemoryInput> {
+  if (!isPlainObject(value)) return validationError('Request body must be a JSON object.')
+
+  const unknown = unknownKeys(value, [
+    'type',
+    'scope',
+    'content',
+    'tags',
+    'source',
+    'status',
+    'salience',
+    'supersedes',
+    'source_ids',
+  ])
+  if (unknown.length) return validationError(`Unknown field(s): ${unknown.join(', ')}`)
+
+  if (!isMemoryType(value.type)) return validationError('Field "type" must be a valid memory type.')
+  if (value.scope !== undefined && !isMemoryScope(value.scope)) {
+    return validationError('Field "scope" must be "project" when provided.')
+  }
+  if (typeof value.content !== 'string') {
+    return validationError('Field "content" must be a string.')
+  }
+
+  const tags = parseOptionalStringArray(value.tags, 'tags')
+  if (!tags.ok) return tags
+
+  const sourceIds = parseOptionalStringArray(value.source_ids, 'source_ids')
+  if (!sourceIds.ok) return sourceIds
+
+  if (value.source !== undefined && typeof value.source !== 'string') {
+    return validationError('Field "source" must be a string when provided.')
+  }
+  if (value.status !== undefined && !isMemoryStatus(value.status)) {
+    return validationError('Field "status" must be a valid memory status when provided.')
+  }
+  if (value.supersedes !== undefined && typeof value.supersedes !== 'string') {
+    return validationError('Field "supersedes" must be a string when provided.')
+  }
+  if (value.salience !== undefined && !isValidSalience(value.salience)) {
+    return validationError('Field "salience" must be a number between 0 and 1 when provided.')
+  }
+
+  return {
+    ok: true,
+    value: {
+      type: value.type,
+      scope: value.scope ?? 'project',
+      content: value.content,
+      tags: tags.value,
+      source: value.source,
+      status: value.status,
+      salience: value.salience,
+      supersedes: value.supersedes,
+      source_ids: sourceIds.value,
+    },
+  }
+}
+
+function parseUpdateMemoryPayload(value: unknown): ValidationResult<UpdateMemoryInput> {
+  if (!isPlainObject(value)) return validationError('Request body must be a JSON object.')
+
+  const unknown = unknownKeys(value, [
+    'content',
+    'tags',
+    'type',
+    'scope',
+    'status',
+    'source_ids',
+    'superseded_by',
+  ])
+  if (unknown.length) return validationError(`Unknown field(s): ${unknown.join(', ')}`)
+
+  if (value.content !== undefined && typeof value.content !== 'string') {
+    return validationError('Field "content" must be a string when provided.')
+  }
+  if (value.type !== undefined && !isMemoryType(value.type)) {
+    return validationError('Field "type" must be a valid memory type when provided.')
+  }
+  if (value.scope !== undefined && !isMemoryScope(value.scope)) {
+    return validationError('Field "scope" must be "project" when provided.')
+  }
+  if (value.status !== undefined && !isMemoryStatus(value.status)) {
+    return validationError('Field "status" must be a valid memory status when provided.')
+  }
+  if (value.superseded_by !== undefined && typeof value.superseded_by !== 'string') {
+    return validationError('Field "superseded_by" must be a string when provided.')
+  }
+
+  const tags = parseOptionalStringArray(value.tags, 'tags')
+  if (!tags.ok) return tags
+
+  const sourceIds = parseOptionalStringArray(value.source_ids, 'source_ids')
+  if (!sourceIds.ok) return sourceIds
+
+  const update: UpdateMemoryInput = {
+    content: value.content,
+    tags: tags.value,
+    type: value.type,
+    scope: value.scope,
+    status: value.status,
+    source_ids: sourceIds.value,
+    superseded_by: value.superseded_by,
+  }
+
+  const hasField = Object.values(update).some((field) => field !== undefined)
+  if (!hasField) return validationError('At least one update field is required.')
+
+  return { ok: true, value: update }
+}
+
+function parseOptionalStringArray(
+  value: unknown,
+  field: string
+): ValidationResult<string[] | undefined> {
+  if (value === undefined) return { ok: true, value: undefined }
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    return validationError(`Field "${field}" must be an array of strings when provided.`)
+  }
+  return { ok: true, value }
+}
+
+function validationError(error: string): ValidationResult<never> {
+  return { ok: false, error }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function unknownKeys(value: Record<string, unknown>, allowed: string[]): string[] {
+  const allowedSet = new Set(allowed)
+  return Object.keys(value).filter((key) => !allowedSet.has(key))
+}
+
+function isValidSalience(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
 }
 
 async function serveStatic(
@@ -775,9 +974,6 @@ function filterMemories(memories: SearchResult[], options: MemoryQueryOptions): 
 }
 
 function memoryMatchesQuery(memory: SearchResult, query: string): boolean {
-  const normalizedQuery = normalizeConcept(query) ?? query.toLowerCase().trim()
-  if (!normalizedQuery) return true
-  const terms = normalizedQuery.split(/\s+/).filter(Boolean)
   const blob = [
     memory.id,
     memory.type,
@@ -792,7 +988,12 @@ function memoryMatchesQuery(memory: SearchResult, query: string): boolean {
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
 
-  return terms.every((term) => blob.includes(term))
+  const normalizedQuery = normalizeConcept(query) ?? query.toLowerCase().trim()
+  if (!normalizedQuery) return true
+  const terms = normalizedQuery.split(/\s+/).filter(Boolean)
+  if (terms.every((term) => blob.includes(term))) return true
+
+  return matchesNaturalSearch(blob, query)
 }
 
 function isNoiseMemory(memory: SearchResult): boolean {
@@ -1066,7 +1267,7 @@ function buildContextPreview(
   exclusions: ContextExclusion[]
 } {
   const generatedAt = new Date().toISOString()
-  const composition = composeContextSources(memories, query, maxMemories)
+  const composition = composeCoreContextSources(memories, query, maxMemories)
   const concepts = filterContextConceptGraph(
     buildConceptGraph(
       composition.selected.map((source) => source.memory),
@@ -1141,142 +1342,6 @@ function buildContextPreview(
       reason,
     })),
   }
-}
-
-function composeContextSources(
-  memories: SearchResult[],
-  query: string | undefined,
-  maxMemories: number
-): {
-  selected: Array<{ memory: SearchResult; section: string; reasons: string[]; score: number }>
-  exclusions: Array<{ memory: SearchResult; reason: string }>
-} {
-  const exclusions: Array<{ memory: SearchResult; reason: string }> = []
-  const focused = Boolean(query?.trim())
-  const maxSessions = focused ? MAX_FOCUSED_CONTEXT_SESSIONS : MAX_GENERAL_CONTEXT_SESSIONS
-  const activeCandidates = memories.filter((memory) => {
-    if (memory.status !== 'active') {
-      exclusions.push({ memory, reason: `not active (${memory.status})` })
-      return false
-    }
-    if (isNoiseMemory(memory)) {
-      exclusions.push({ memory, reason: 'marked as noise' })
-      return false
-    }
-    if (query && !memoryMatchesQuery(memory, query)) {
-      exclusions.push({ memory, reason: 'does not match focused query' })
-      return false
-    }
-    return true
-  })
-
-  const ranked = activeCandidates
-    .map((memory) => ({
-      memory,
-      section: getContextSection(memory),
-      reasons: getContextReasons(memory, focused),
-      score: getContextScore(memory, focused),
-    }))
-    .sort((a, b) => b.score - a.score || b.memory.updated_at.localeCompare(a.memory.updated_at))
-
-  const durable = ranked.filter((item) => item.memory.type !== 'session')
-  const sessions = ranked.filter((item) => item.memory.type === 'session')
-  const durableLimit = Math.max(0, maxMemories - Math.min(maxSessions, sessions.length))
-  const selected = durable.slice(0, durableLimit)
-  const selectedIds = new Set(selected.map((item) => item.memory.id))
-
-  durable.slice(durableLimit).forEach((item) => {
-    exclusions.push({ memory: item.memory, reason: 'lower-ranked durable memory overflow' })
-  })
-
-  const sessionCandidates = sessions.filter((item) => {
-    if (
-      !isDuplicateImplementationSummary(
-        item.memory,
-        selected.map((source) => source.memory)
-      )
-    ) {
-      return true
-    }
-    exclusions.push({
-      memory: item.memory,
-      reason: 'duplicate implementation summary covered by a durable memory',
-    })
-    return false
-  })
-
-  const selectedSessions = sessionCandidates.slice(0, Math.max(0, maxMemories - selected.length))
-  selectedSessions.slice(0, maxSessions).forEach((item) => {
-    selected.push(item)
-    selectedIds.add(item.memory.id)
-  })
-
-  sessionCandidates.forEach((item) => {
-    if (!selectedIds.has(item.memory.id)) {
-      exclusions.push({ memory: item.memory, reason: 'recent activity overflow' })
-    }
-  })
-
-  return { selected, exclusions }
-}
-
-function getContextScore(memory: SearchResult, focused: boolean): number {
-  const typeScore = CONTEXT_TYPE_WEIGHTS[memory.type] ?? 500
-  const recencyScore = getRecencyScore(memory.updated_at)
-  const tagScore = Math.min(memory.tags.length, 6) * 4
-  const generalMetaPenalty =
-    !focused && memory.tags.some((tag) => GENERAL_CONTEXT_IGNORED_CONCEPTS.includes(tag)) ? 80 : 0
-  const implementationPenalty = !focused && isImplementationSummary(memory) ? 120 : 0
-
-  return typeScore + recencyScore + tagScore - generalMetaPenalty - implementationPenalty
-}
-
-function getRecencyScore(updatedAt: string): number {
-  const timestamp = Date.parse(updatedAt)
-  if (!Number.isFinite(timestamp)) return 0
-  const ageDays = Math.max(0, (Date.now() - timestamp) / 86_400_000)
-  return Math.max(0, 70 - ageDays)
-}
-
-function getContextSection(memory: SearchResult): string {
-  return CONTEXT_SECTION_TITLES[memory.type] ?? 'Project Knowledge'
-}
-
-function getContextReasons(memory: SearchResult, focused: boolean): string[] {
-  const reasons = [`active ${memory.type}`]
-  if (['rule', 'decision', 'preference', 'knowledge'].includes(memory.type)) {
-    reasons.push('durable context')
-  }
-  if (memory.type === 'session') {
-    reasons.push('limited recent activity')
-  }
-  if (focused) {
-    reasons.push('matches focused query')
-  }
-  return reasons
-}
-
-function isDuplicateImplementationSummary(memory: SearchResult, selected: SearchResult[]): boolean {
-  if (!isImplementationSummary(memory)) return false
-
-  return selected.some((candidate) => {
-    if (candidate.type === 'session') return false
-    return countSharedTags(memory.tags, candidate.tags) >= 2
-  })
-}
-
-function isImplementationSummary(memory: SearchResult): boolean {
-  return (
-    memory.type === 'session' &&
-    /^(added|built|changed|completed|created|fixed|implemented|removed|updated|verified)\b/i.test(
-      memory.content.trim()
-    )
-  )
-}
-
-function countSharedTags(left: string[], right: string[]): number {
-  const rightTags = new Set(right)
-  return left.filter((tag) => rightTags.has(tag)).length
 }
 
 function groupContextSources(

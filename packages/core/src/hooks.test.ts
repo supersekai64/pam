@@ -78,6 +78,29 @@ describe('hooks', () => {
     expect(sessionMemory?.content).not.toContain('Hello')
   })
 
+  it('should redact sensitive hook observation data before writing JSONL logs', async () => {
+    const event = await recordHookEvent(basePath, {
+      type: 'user-prompt',
+      session_id: 'session-secret',
+      project_path: tempDir,
+      data: {
+        text: 'Please remember this. api_key = "test_api_key_value_1234567890"',
+        nested: {
+          password: 'password = "SuperSecretPassword123!"',
+        },
+      },
+    })
+
+    expect(event.data.text).toContain('[REDACTED_API_KEY]')
+    expect(JSON.stringify(event.data)).not.toContain('test_api_key_value_1234567890')
+    expect(JSON.stringify(event.data)).not.toContain('SuperSecretPassword123')
+
+    const events = await getSessionEvents(basePath, 'session-secret')
+    expect(events).toHaveLength(1)
+    expect(JSON.stringify(events[0].data)).toContain('[REDACTED_API_KEY]')
+    expect(JSON.stringify(events[0].data)).toContain('[REDACTED_PASSWORD]')
+  })
+
   it('should infer proposed rule memories from explicit user correction prompts', async () => {
     await recordHookEvent(basePath, {
       type: 'user-prompt',

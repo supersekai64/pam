@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import { join } from 'node:path'
+import { expandNaturalQuery } from './query.js'
 import type { Memory } from './types.js'
 
 interface DbMemoryRow {
@@ -156,10 +157,12 @@ export class MemoryIndex {
   }
 
   search(options: SearchOptions): SearchResult[] {
-    const { query, type, scope, tag, limit = 50 } = options
+    const { query, type, scope, tag, limit = 50, natural = true } = options
 
     if (query) {
-      return this.searchFullText(query, type, scope, tag, limit)
+      const exactResults = this.searchFullText(query, type, scope, tag, limit)
+      if (exactResults.length > 0 || !natural) return exactResults
+      return this.searchNaturalText(query, type, scope, tag, limit)
     }
 
     return this.searchByFilters(type, scope, tag, limit)
@@ -172,6 +175,37 @@ export class MemoryIndex {
     tag?: string,
     limit: number = 50
   ): SearchResult[] {
+    return this.searchFts(escapeFtsQuery(query), type, scope, tag, limit)
+  }
+
+  private searchNaturalText(
+    query: string,
+    type?: string,
+    scope?: string,
+    tag?: string,
+    limit: number = 50
+  ): SearchResult[] {
+    const { terms } = expandNaturalQuery(query)
+    if (terms.length === 0) return []
+
+    return this.searchFts(
+      terms.map((term) => quoteFtsTerm(term)).join(' OR '),
+      type,
+      scope,
+      tag,
+      limit
+    )
+  }
+
+  private searchFts(
+    ftsQuery: string,
+    type?: string,
+    scope?: string,
+    tag?: string,
+    limit: number = 50
+  ): SearchResult[] {
+    if (!ftsQuery.trim()) return []
+
     let sql = `
       SELECT m.*, GROUP_CONCAT(t.tag) as tags
       FROM memories_fts fts
@@ -180,7 +214,7 @@ export class MemoryIndex {
       WHERE memories_fts MATCH ?
     `
 
-    const params: (string | number)[] = [escapeFtsQuery(query)]
+    const params: (string | number)[] = [ftsQuery]
 
     if (type) {
       sql += ' AND m.type = ?'
@@ -390,6 +424,7 @@ export interface SearchOptions {
   scope?: string
   tag?: string
   limit?: number
+  natural?: boolean
 }
 
 export interface SearchResult {
@@ -422,6 +457,10 @@ function escapeFtsQuery(query: string): string {
     .split(/\s+/)
     .map((term) => term.trim())
     .filter(Boolean)
-    .map((term) => `"${term.replace(/"/g, '""')}"`)
+    .map(quoteFtsTerm)
     .join(' ')
+}
+
+function quoteFtsTerm(term: string): string {
+  return `"${term.replace(/"/g, '""')}"`
 }

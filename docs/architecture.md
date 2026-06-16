@@ -38,11 +38,17 @@ analysis. It has no CLI or MCP dependency.
 
 ### pamh-cli
 
-Command-line interface published to npm. Depends on core and embeds the MCP server used by IDEs and AI agents.
+Command-line interface published to npm. Depends on core, API, and the
+`pamh-protocol` package; `memory server start` delegates to that shared MCP
+server implementation.
 
 ### pamh-api
 
-Local HTTP API for human-facing clients. It binds to `127.0.0.1` by default and delegates all persistence to core. The API also owns UI-facing projections such as the composed LLM context preview: it normalizes legacy metadata, prioritizes durable memories, limits recent sessions, and reports exclusion reasons for context hygiene. Future desktop apps and IDE extensions can use this API boundary from separate repositories.
+Local HTTP API for human-facing clients. It binds to `127.0.0.1` by default,
+uses a per-instance token for mutable requests, and delegates persistence plus
+context source selection to core. The API owns UI-facing projections such as
+concept graphs and evidence views. Future desktop apps and IDE extensions can
+use this API boundary from separate repositories.
 
 ### pamh-ui
 

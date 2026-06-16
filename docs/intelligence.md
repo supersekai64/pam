@@ -55,6 +55,16 @@ Recommendation types include:
 Rejected recommendations are stored so they do not immediately reappear without
 new evidence.
 
+The UI shows each recommendation with:
+
+- the deterministic rule that produced it;
+- a confidence score derived from evidence count and recommendation type;
+- the linked evidence memories;
+- a before/after preview of the proposed action.
+
+This keeps recommendations explainable: applying one should never require
+trusting a hidden model decision.
+
 ## Cleanup
 
 Preview grouped cleanup recommendations:

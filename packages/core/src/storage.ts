@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile, readdir, stat, rm } from 'node:fs/promises'
 import { join, dirname, parse } from 'node:path'
 import { existsSync } from 'node:fs'
 import { parseMarkdown, serializeMarkdown } from './markdown.js'
-import { generateId } from './id.js'
+import { assertMemoryId, generateId, isMemoryId } from './id.js'
 import { MemoryIndex, type SearchResult } from './indexer.js'
 import { recordMemoryDebugEvent, summarizeMemoryForDebug } from './memory-debug.js'
 import {
@@ -17,6 +17,7 @@ import {
 } from './types.js'
 
 export const PROJECT_MEMORY_DIR = '.ai-memory'
+export const MEMORY_BACKUP_DIR = 'backups'
 
 export function findMemoryBase(startPath: string): string | null {
   let currentPath = startPath
@@ -90,12 +91,7 @@ export async function createMemory(basePath: string, input: CreateMemoryInput): 
     content: input.content,
   }
 
-  const subdir = getSubdirForType(type)
-  const dirPath = join(basePath, subdir)
-  await mkdir(dirPath, { recursive: true })
-
-  const filePath = join(dirPath, `${id}.md`)
-  await writeFile(filePath, serializeMarkdown(memory), 'utf-8')
+  const filePath = await writeMemoryFile(basePath, memory)
 
   const index = new MemoryIndex(basePath)
   index.indexMemory(memory, filePath)
@@ -167,6 +163,7 @@ export async function updateMemory(
   const raw = await readFile(filePath, 'utf-8')
   const memory = parseMarkdown(raw)
   const before = summarizeMemoryForDebug(memory)
+  const originalFilePath = filePath
 
   if (input.content !== undefined) {
     memory.content = input.content
@@ -193,11 +190,13 @@ export async function updateMemory(
   }
 
   memory.metadata.updated_at = new Date().toISOString()
+  assertMemoryId(memory.metadata.id)
 
-  await writeFile(filePath, serializeMarkdown(memory), 'utf-8')
+  const nextFilePath = getMemoryFilePath(basePath, memory)
+  await writeMemoryUpdate(originalFilePath, nextFilePath, serializeMarkdown(memory))
 
   const index = new MemoryIndex(basePath)
-  index.indexMemory(memory, filePath)
+  index.indexMemory(memory, nextFilePath)
   index.close()
 
   await recordMemoryDebugEvent(basePath, {
@@ -206,7 +205,8 @@ export async function updateMemory(
     memory_id: id,
     source: memory.metadata.source,
     details: {
-      file_path: filePath,
+      file_path: nextFilePath,
+      previous_file_path: originalFilePath !== nextFilePath ? originalFilePath : undefined,
       changed_fields: Object.keys(input).filter(
         (key) => input[key as keyof UpdateMemoryInput] !== undefined
       ),
@@ -221,6 +221,7 @@ export async function updateMemory(
 
 export interface DeleteMemoryOptions {
   physical?: boolean
+  backup?: boolean
 }
 
 export async function deleteMemory(
@@ -242,6 +243,10 @@ export async function deleteMemory(
   if (options.physical) {
     const raw = await readFile(filePath, 'utf-8')
     const memory = parseMarkdown(raw)
+    const backupPath =
+      options.backup === false
+        ? undefined
+        : await writeMemoryBackup(basePath, memory, 'physical-delete', raw)
     await rm(filePath, { force: true })
 
     const index = new MemoryIndex(basePath)
@@ -253,7 +258,7 @@ export async function deleteMemory(
       outcome: 'ok',
       memory_id: id,
       source: memory.metadata.source,
-      details: { file_path: filePath },
+      details: { file_path: filePath, backup_path: backupPath },
       before: summarizeMemoryForDebug(memory),
     })
 
@@ -284,6 +289,19 @@ export async function deleteMemory(
   })
 
   return true
+}
+
+export async function backupMemory(
+  basePath: string,
+  id: string,
+  reason = 'manual'
+): Promise<string | null> {
+  const filePath = await findMemoryFile(basePath, id)
+  if (!filePath) return null
+
+  const raw = await readFile(filePath, 'utf-8')
+  const memory = parseMarkdown(raw)
+  return writeMemoryBackup(basePath, memory, reason, raw)
 }
 
 export async function archiveMemory(basePath: string, id: string): Promise<boolean> {
@@ -388,6 +406,8 @@ function getSubdirForType(type: string): string {
 }
 
 export async function findMemoryFile(basePath: string, id: string): Promise<string | null> {
+  if (!isMemoryId(id)) return null
+
   async function searchDir(dir: string): Promise<string | null> {
     if (!existsSync(dir)) return null
 
@@ -409,6 +429,94 @@ export async function findMemoryFile(basePath: string, id: string): Promise<stri
   }
 
   return searchDir(basePath)
+}
+
+function getMemoryFilePath(basePath: string, memory: Memory): string {
+  return join(basePath, getSubdirForType(memory.metadata.type), `${memory.metadata.id}.md`)
+}
+
+export async function writeMemoryFile(basePath: string, memory: Memory): Promise<string> {
+  assertMemoryId(memory.metadata.id)
+
+  const filePath = getMemoryFilePath(basePath, memory)
+  await mkdir(dirname(filePath), { recursive: true })
+  await writeFile(filePath, serializeMarkdown(memory), 'utf-8')
+  return filePath
+}
+
+export async function findLatestMemoryBackup(basePath: string, id: string): Promise<string | null> {
+  if (!isMemoryId(id)) return null
+
+  const backupDir = join(basePath, MEMORY_BACKUP_DIR)
+  if (!existsSync(backupDir)) return null
+
+  const entries = await readdir(backupDir)
+  const candidates: Array<{ path: string; mtimeMs: number }> = []
+
+  for (const entry of entries) {
+    if (!entry.endsWith(`-${id}.bak`)) continue
+
+    const filePath = join(backupDir, entry)
+    try {
+      const stats = await stat(filePath)
+      if (stats.isFile()) {
+        candidates.push({ path: filePath, mtimeMs: stats.mtimeMs })
+      }
+    } catch {
+      // Ignore concurrently removed backup files.
+    }
+  }
+
+  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs)
+  return candidates[0]?.path ?? null
+}
+
+async function writeMemoryBackup(
+  basePath: string,
+  memory: Memory,
+  reason: string,
+  raw: string
+): Promise<string> {
+  assertMemoryId(memory.metadata.id)
+
+  const backupDir = join(basePath, MEMORY_BACKUP_DIR)
+  await mkdir(backupDir, { recursive: true })
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const safeReason = sanitizeBackupReason(reason)
+  const filePath = join(backupDir, `${timestamp}-${safeReason}-${memory.metadata.id}.bak`)
+  await writeFile(filePath, raw, 'utf-8')
+
+  return filePath
+}
+
+function sanitizeBackupReason(reason: string): string {
+  return (
+    reason
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/^-|-$/g, '') || 'backup'
+  )
+}
+
+async function writeMemoryUpdate(
+  currentFilePath: string,
+  nextFilePath: string,
+  content: string
+): Promise<void> {
+  if (currentFilePath === nextFilePath) {
+    await writeFile(currentFilePath, content, 'utf-8')
+    return
+  }
+
+  await mkdir(dirname(nextFilePath), { recursive: true })
+  try {
+    await writeFile(nextFilePath, content, 'utf-8')
+    await rm(currentFilePath, { force: true })
+  } catch (error) {
+    await rm(nextFilePath, { force: true })
+    throw error
+  }
 }
 
 export async function indexAllMemories(basePath: string): Promise<number> {
@@ -506,4 +614,65 @@ export interface ConsistencyReport {
   totalIndexed: number
   missingInIndex: string[]
   missingInFiles: string[]
+}
+
+export interface MemoryFileIssue {
+  path: string
+  error: string
+}
+
+export async function scanMemoryFileIssues(basePath: string): Promise<MemoryFileIssue[]> {
+  const issues: MemoryFileIssue[] = []
+
+  async function scanDir(dir: string) {
+    if (!existsSync(dir)) return
+
+    let entries: string[]
+    try {
+      entries = await readdir(dir)
+    } catch (error) {
+      issues.push({ path: dir, error: `Cannot read directory: ${formatError(error)}` })
+      return
+    }
+
+    for (const entry of entries) {
+      const fullPath = join(dir, entry)
+
+      let stats
+      try {
+        stats = await stat(fullPath)
+      } catch (error) {
+        issues.push({ path: fullPath, error: `Cannot stat file: ${formatError(error)}` })
+        continue
+      }
+
+      if (stats.isDirectory()) {
+        await scanDir(fullPath)
+        continue
+      }
+
+      if (!entry.endsWith('.md')) continue
+
+      try {
+        const raw = await readFile(fullPath, 'utf-8')
+        if (!raw.trim()) continue
+
+        const memory = parseMarkdown(raw)
+        if (!memory.metadata.id) {
+          issues.push({ path: fullPath, error: 'Missing memory id in frontmatter.' })
+        } else if (!isMemoryId(memory.metadata.id)) {
+          issues.push({ path: fullPath, error: `Invalid memory id: ${memory.metadata.id}` })
+        }
+      } catch (error) {
+        issues.push({ path: fullPath, error: formatError(error) })
+      }
+    }
+  }
+
+  await scanDir(basePath)
+  return issues
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

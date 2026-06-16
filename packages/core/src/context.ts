@@ -2,8 +2,8 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { listMemories } from './storage.js'
-import { MemoryIndex } from './indexer.js'
 import { recordMemoryDebugEvent } from './memory-debug.js'
+import { normalizeConcept } from './concepts.js'
 import type { Memory, MemoryScope, MemoryStatus, MemoryType } from './types.js'
 
 export interface CompileContextOptions {
@@ -22,8 +22,40 @@ export interface CompiledContext {
   }
 }
 
+export interface ContextMemory {
+  id: string
+  type: string
+  scope: string
+  status: string
+  source: string
+  created_at: string
+  updated_at: string
+  tags: string[]
+  content: string
+}
+
+export interface RankedContextSource<T extends ContextMemory = ContextMemory> {
+  memory: T
+  section: string
+  reasons: string[]
+  score: number
+}
+
+export interface ContextExclusion<T extends ContextMemory = ContextMemory> {
+  memory: T
+  reason: string
+}
+
+export interface ContextComposition<T extends ContextMemory = ContextMemory> {
+  selected: Array<RankedContextSource<T>>
+  exclusions: Array<ContextExclusion<T>>
+}
+
 const DEFAULT_MAX_TOKENS = 4000
 const CHARS_PER_TOKEN = 4
+const MAX_GENERAL_CONTEXT_SESSIONS = 0
+const MAX_FOCUSED_CONTEXT_SESSIONS = 4
+const GENERAL_CONTEXT_IGNORED_CONCEPTS = ['migration', 'phase-2', 'pnpm', 'scope', 'project-only']
 const CONTEXT_TYPE_WEIGHTS: Record<string, number> = {
   rule: 1000,
   decision: 930,
@@ -64,54 +96,49 @@ export async function compileContext(
     search: [] as Memory[],
   }
 
-  let currentTokens = 0
+  let composition: ContextComposition = { selected: [], exclusions: [] }
+  let content = formatCompiledContext(composition, query)
 
-  if (includeProject && existsSync(projectBasePath)) {
-    const projectMemories = await listMemories(projectBasePath)
-    const activeProject = projectMemories.filter(isContextMemory).sort(compareContextMemories)
+  if (existsSync(projectBasePath) && (includeProject || includeSearch)) {
+    const memories = (await listMemories(projectBasePath)).map(memoryToContextMemory)
+    const contextQuery = includeSearch ? query : undefined
+    const maxMemories = includeProject ? Math.max(memories.length, 1) : query ? 10 : 0
+    composition = composeContextSources(memories, contextQuery, maxMemories)
 
-    for (const memory of activeProject) {
-      const memoryTokens = estimateTokens(memory.content)
-      if (currentTokens + memoryTokens <= maxTokens) {
-        sources.project.push(memory)
-        currentTokens += memoryTokens
+    while (composition.selected.length > 0) {
+      content = formatCompiledContext(composition, query)
+      if (estimateTokens(content) <= maxTokens) break
+
+      const removed = composition.selected[composition.selected.length - 1]
+      composition = {
+        selected: composition.selected.slice(0, -1),
+        exclusions: [
+          ...composition.exclusions,
+          { memory: removed.memory, reason: 'formatted context token budget overflow' },
+        ],
       }
+    }
+
+    content = formatCompiledContext(composition, query)
+    while (estimateTokens(content) > maxTokens && composition.exclusions.length > 0) {
+      composition = {
+        selected: composition.selected,
+        exclusions: composition.exclusions.slice(0, -1),
+      }
+      content = formatCompiledContext(composition, query)
+    }
+
+    const selectedMemories = composition.selected.map((source) =>
+      contextMemoryToMemory(source.memory)
+    )
+    if (includeProject) {
+      sources.project = selectedMemories
+    } else {
+      sources.search = selectedMemories
     }
   }
 
-  if (includeSearch && query && existsSync(projectBasePath)) {
-    try {
-      const index = new MemoryIndex(projectBasePath)
-      const searchResults = index.search({ query, limit: 10 })
-      index.close()
-
-      for (const result of searchResults) {
-        if (result.status === 'active' && !isNoiseResult(result)) {
-          const memoryTokens = estimateTokens(result.content)
-          if (currentTokens + memoryTokens <= maxTokens) {
-            sources.search.push({
-              metadata: {
-                id: result.id,
-                type: result.type as MemoryType,
-                scope: result.scope as MemoryScope,
-                status: result.status as MemoryStatus,
-                created_at: result.created_at,
-                updated_at: result.updated_at,
-                tags: result.tags,
-                source: result.source,
-              },
-              content: result.content,
-            })
-            currentTokens += memoryTokens
-          }
-        }
-      }
-    } catch (error) {
-      console.warn(`Warning: Search failed during context compilation: ${error}`)
-    }
-  }
-
-  const content = formatCompiledContext(sources, query)
+  const tokenCount = estimateTokens(content)
 
   await recordMemoryDebugEvent(projectBasePath, {
     action: 'context.compile',
@@ -121,7 +148,7 @@ export async function compileContext(
       maxTokens,
       includeProject,
       includeSearch,
-      tokenCount: currentTokens,
+      tokenCount,
       source_counts: {
         project: sources.project.length,
         search: sources.search.length,
@@ -130,12 +157,13 @@ export async function compileContext(
         project: sources.project.map((memory) => memory.metadata.id),
         search: sources.search.map((memory) => memory.metadata.id),
       },
+      exclusion_count: composition.exclusions.length,
     },
   })
 
   return {
     content,
-    tokenCount: currentTokens,
+    tokenCount,
     sources,
   }
 }
@@ -163,36 +191,39 @@ export async function writeCompiledContext(
   return outputPath
 }
 
-function estimateTokens(text: string): number {
+export function estimateContextTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN)
 }
 
-function formatCompiledContext(sources: CompiledContext['sources'], query?: string): string {
+function estimateTokens(text: string): number {
+  return estimateContextTokens(text)
+}
+
+function formatCompiledContext(composition: ContextComposition, query?: string): string {
   let content = '# Compiled Context\n\n'
   content += `Generated at: ${new Date().toISOString()}\n`
   if (query) {
     content += `Query: ${query}\n`
   }
+  content +=
+    'Policy: active durable memories first; noise, deleted, archived, proposed, duplicate implementation summaries, and lower-ranked overflow are excluded.\n'
   content += '\n---\n\n'
 
-  if (sources.project.length > 0) {
-    content += '## Project Memory\n\n'
-    for (const [section, memories] of groupMemoriesBySection(sources.project)) {
+  if (composition.selected.length > 0) {
+    content += '## Selected Memories\n\n'
+    for (const [section, sources] of groupContextSources(composition.selected)) {
       content += `### ${section}\n\n`
-      for (const memory of memories) {
-        content += formatMemory(memory)
+      for (const source of sources) {
+        content += formatMemory(source)
       }
     }
     content += '\n'
   }
 
-  if (sources.search.length > 0) {
-    content += '## Search Results\n\n'
-    for (const [section, memories] of groupMemoriesBySection(sources.search)) {
-      content += `### ${section}\n\n`
-      for (const memory of memories) {
-        content += formatMemory(memory)
-      }
+  if (composition.exclusions.length > 0) {
+    content += '## Excluded Memories\n\n'
+    for (const exclusion of composition.exclusions) {
+      content += `- ${exclusion.memory.id}: ${exclusion.reason}\n`
     }
     content += '\n'
   }
@@ -200,31 +231,20 @@ function formatCompiledContext(sources: CompiledContext['sources'], query?: stri
   return content
 }
 
-function formatMemory(memory: Memory): string {
-  let output = `#### ${memory.metadata.id}\n\n`
-  output += `- **Type**: ${memory.metadata.type}\n`
-  if (memory.metadata.tags.length > 0) {
-    output += `- **Tags**: ${memory.metadata.tags.join(', ')}\n`
+function formatMemory(source: RankedContextSource): string {
+  const { memory } = source
+  let output = `#### ${memory.id}\n\n`
+  output += `- **Type**: ${memory.type}\n`
+  output += `- **Updated**: ${memory.updated_at}\n`
+  output += `- **Included because**: ${source.reasons.join('; ')}\n`
+  if (memory.tags.length > 0) {
+    output += `- **Tags**: ${memory.tags.join(', ')}\n`
   }
   output += `\n${memory.content}\n\n---\n\n`
   return output
 }
 
-function isContextMemory(memory: Memory): boolean {
-  return memory.metadata.status === 'active' && !isNoiseMemory(memory)
-}
-
-function isNoiseMemory(memory: Memory): boolean {
-  return (
-    memory.metadata.status === 'noise' ||
-    memory.metadata.tags.includes('noise') ||
-    memory.metadata.tags.includes('ignored') ||
-    memory.metadata.tags.includes('pamh-noise') ||
-    memory.metadata.source === 'noise'
-  )
-}
-
-function isNoiseResult(memory: { status: string; tags: string[]; source: string }): boolean {
+export function isContextNoiseMemory(memory: ContextMemory): boolean {
   return (
     memory.status === 'noise' ||
     memory.tags.includes('noise') ||
@@ -234,13 +254,166 @@ function isNoiseResult(memory: { status: string; tags: string[]; source: string 
   )
 }
 
-function compareContextMemories(left: Memory, right: Memory): number {
-  const leftScore = CONTEXT_TYPE_WEIGHTS[left.metadata.type] ?? 500
-  const rightScore = CONTEXT_TYPE_WEIGHTS[right.metadata.type] ?? 500
-  return rightScore - leftScore || right.metadata.updated_at.localeCompare(left.metadata.updated_at)
+export function composeContextSources<T extends ContextMemory>(
+  memories: T[],
+  query: string | undefined,
+  maxMemories: number
+): ContextComposition<T> {
+  const exclusions: Array<ContextExclusion<T>> = []
+  const focused = Boolean(query?.trim())
+  const maxSessions = focused ? MAX_FOCUSED_CONTEXT_SESSIONS : MAX_GENERAL_CONTEXT_SESSIONS
+  const activeCandidates = memories.filter((memory) => {
+    if (memory.status !== 'active') {
+      exclusions.push({ memory, reason: `not active (${memory.status})` })
+      return false
+    }
+    if (isContextNoiseMemory(memory)) {
+      exclusions.push({ memory, reason: 'marked as noise' })
+      return false
+    }
+    if (query && !contextMemoryMatchesQuery(memory, query)) {
+      exclusions.push({ memory, reason: 'does not match focused query' })
+      return false
+    }
+    return true
+  })
+
+  const ranked = activeCandidates
+    .map((memory) => ({
+      memory,
+      section: getContextSection(memory),
+      reasons: getContextReasons(memory, focused),
+      score: getContextScore(memory, focused),
+    }))
+    .sort((a, b) => b.score - a.score || b.memory.updated_at.localeCompare(a.memory.updated_at))
+
+  const durable = ranked.filter((item) => item.memory.type !== 'session')
+  const sessions = ranked.filter((item) => item.memory.type === 'session')
+  const durableLimit = Math.max(0, maxMemories - Math.min(maxSessions, sessions.length))
+  const selected = durable.slice(0, durableLimit)
+  const selectedIds = new Set(selected.map((item) => item.memory.id))
+
+  durable.slice(durableLimit).forEach((item) => {
+    exclusions.push({ memory: item.memory, reason: 'lower-ranked durable memory overflow' })
+  })
+
+  const sessionCandidates = sessions.filter((item) => {
+    if (
+      !isDuplicateImplementationSummary(
+        item.memory,
+        selected.map((source) => source.memory)
+      )
+    ) {
+      return true
+    }
+    exclusions.push({
+      memory: item.memory,
+      reason: 'duplicate implementation summary covered by a durable memory',
+    })
+    return false
+  })
+
+  const selectedSessions = sessionCandidates.slice(0, Math.max(0, maxMemories - selected.length))
+  selectedSessions.slice(0, maxSessions).forEach((item) => {
+    selected.push(item)
+    selectedIds.add(item.memory.id)
+  })
+
+  sessionCandidates.forEach((item) => {
+    if (!selectedIds.has(item.memory.id)) {
+      exclusions.push({ memory: item.memory, reason: 'recent activity overflow' })
+    }
+  })
+
+  return { selected, exclusions }
 }
 
-function groupMemoriesBySection(memories: Memory[]): Array<[string, Memory[]]> {
+function getContextScore(memory: ContextMemory, focused: boolean): number {
+  const typeScore = CONTEXT_TYPE_WEIGHTS[memory.type] ?? 500
+  const recencyScore = getRecencyScore(memory.updated_at)
+  const tagScore = Math.min(memory.tags.length, 6) * 4
+  const generalMetaPenalty =
+    !focused && memory.tags.some((tag) => GENERAL_CONTEXT_IGNORED_CONCEPTS.includes(tag)) ? 80 : 0
+  const implementationPenalty = !focused && isImplementationSummary(memory) ? 120 : 0
+
+  return typeScore + recencyScore + tagScore - generalMetaPenalty - implementationPenalty
+}
+
+function getRecencyScore(updatedAt: string): number {
+  const timestamp = Date.parse(updatedAt)
+  if (!Number.isFinite(timestamp)) return 0
+  const ageDays = Math.max(0, (Date.now() - timestamp) / 86_400_000)
+  return Math.max(0, 70 - ageDays)
+}
+
+function getContextSection(memory: ContextMemory): string {
+  return CONTEXT_SECTION_TITLES[memory.type] ?? 'Project Knowledge'
+}
+
+function getContextReasons(memory: ContextMemory, focused: boolean): string[] {
+  const reasons = [`active ${memory.type}`]
+  if (['rule', 'decision', 'preference', 'knowledge'].includes(memory.type)) {
+    reasons.push('durable context')
+  }
+  if (memory.type === 'session') {
+    reasons.push('limited recent activity')
+  }
+  if (focused) {
+    reasons.push('matches focused query')
+  }
+  return reasons
+}
+
+function contextMemoryMatchesQuery(memory: ContextMemory, query: string): boolean {
+  const normalizedQuery = normalizeConcept(query) ?? query.toLowerCase().trim()
+  if (!normalizedQuery) return true
+  const terms = normalizedQuery.split(/\s+/).filter(Boolean)
+  const blob = [
+    memory.id,
+    memory.type,
+    memory.scope,
+    memory.status,
+    memory.source,
+    memory.content,
+    ...memory.tags,
+  ]
+    .join(' ')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+  return terms.every((term) => blob.includes(term))
+}
+
+function isDuplicateImplementationSummary(
+  memory: ContextMemory,
+  selected: ContextMemory[]
+): boolean {
+  if (!isImplementationSummary(memory)) return false
+
+  return selected.some((candidate) => {
+    if (candidate.type === 'session') return false
+    return countSharedTags(memory.tags, candidate.tags) >= 2
+  })
+}
+
+function isImplementationSummary(memory: ContextMemory): boolean {
+  return (
+    memory.type === 'session' &&
+    /^(added|built|changed|completed|created|fixed|implemented|removed|updated|verified)\b/i.test(
+      memory.content.trim()
+    )
+  )
+}
+
+function countSharedTags(left: string[], right: string[]): number {
+  const rightTags = new Set(right)
+  return left.filter((tag) => rightTags.has(tag)).length
+}
+
+function groupContextSources(
+  sources: RankedContextSource[]
+): Array<[string, RankedContextSource[]]> {
   const order = [
     'Current Project Rules',
     'Active Decisions',
@@ -252,14 +425,48 @@ function groupMemoriesBySection(memories: Memory[]): Array<[string, Memory[]]> {
     'Client Context',
     'Recent Activity',
   ]
-  const groups = new Map<string, Memory[]>()
+  const groups = new Map<string, RankedContextSource[]>()
 
-  memories.forEach((memory) => {
-    const section = CONTEXT_SECTION_TITLES[memory.metadata.type] ?? 'Project Knowledge'
-    groups.set(section, [...(groups.get(section) ?? []), memory])
+  sources.forEach((source) => {
+    groups.set(source.section, [...(groups.get(source.section) ?? []), source])
   })
 
   return [...groups.entries()].sort(
-    (a, b) => order.indexOf(a[0]) - order.indexOf(b[0]) || a[0].localeCompare(b[0])
+    (a, b) => sectionOrder(order, a[0]) - sectionOrder(order, b[0]) || a[0].localeCompare(b[0])
   )
+}
+
+function sectionOrder(order: string[], section: string): number {
+  const index = order.indexOf(section)
+  return index === -1 ? order.length : index
+}
+
+function memoryToContextMemory(memory: Memory): ContextMemory {
+  return {
+    id: memory.metadata.id,
+    type: memory.metadata.type,
+    scope: memory.metadata.scope,
+    status: memory.metadata.status,
+    source: memory.metadata.source,
+    created_at: memory.metadata.created_at,
+    updated_at: memory.metadata.updated_at,
+    tags: memory.metadata.tags,
+    content: memory.content,
+  }
+}
+
+function contextMemoryToMemory(memory: ContextMemory): Memory {
+  return {
+    metadata: {
+      id: memory.id,
+      type: memory.type as MemoryType,
+      scope: memory.scope as MemoryScope,
+      status: memory.status as MemoryStatus,
+      created_at: memory.created_at,
+      updated_at: memory.updated_at,
+      tags: memory.tags,
+      source: memory.source,
+    },
+    content: memory.content,
+  }
 }

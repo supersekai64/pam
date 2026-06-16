@@ -1,38 +1,27 @@
+import { ClipboardCheck, FileText, PlugZap, SearchCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-
-interface Stats {
-  total: number
-  active: number
-}
-
-interface StatsResponse {
-  project: {
-    name: string
-    path: string
-    memoryPath: string
-  }
-  stats: Stats
-}
-
-interface ApiConceptGraph {
-  totalMemories: number
-  concepts: unknown[]
-}
+import type { ApiConceptGraph, StatsResponse } from '@/types'
 
 export function DashboardPage({
   conceptGraph,
   memoryTotal,
+  onContextOpen,
+  onEvidenceOpen,
   statsResponse,
 }: {
   conceptGraph: ApiConceptGraph | null
   memoryTotal: number
+  onContextOpen: () => void
+  onEvidenceOpen: () => void
   statsResponse: StatsResponse | null
 }) {
   const stats = statsResponse?.stats
   const project = statsResponse?.project
+  const hasNoMemories = stats ? stats.total === 0 : memoryTotal === 0
 
   return (
     <section className="grid gap-4">
@@ -62,6 +51,10 @@ export function DashboardPage({
           </div>
         </div>
       </Panel>
+
+      {hasNoMemories ? (
+        <FirstRunPanel onContextOpen={onContextOpen} onEvidenceOpen={onEvidenceOpen} />
+      ) : null}
 
       <section className="grid grid-cols-[0.9fr_0.9fr_0.9fr_1.15fr] gap-3 max-xl:grid-cols-2 max-md:grid-cols-1">
         <Hint label="Active memories that would be included in the LLM context window right now.">
@@ -109,6 +102,70 @@ export function DashboardPage({
         <div aria-hidden="true" className="rounded-md border border-border bg-card" />
       </section>
     </section>
+  )
+}
+
+function FirstRunPanel({
+  onContextOpen,
+  onEvidenceOpen,
+}: {
+  onContextOpen: () => void
+  onEvidenceOpen: () => void
+}) {
+  const steps = [
+    {
+      icon: PlugZap,
+      title: 'Connect agent',
+      detail: 'memory doctor integrations',
+    },
+    {
+      icon: ClipboardCheck,
+      title: 'Create probe',
+      detail: 'memory smoke-test agent',
+    },
+    {
+      icon: SearchCheck,
+      title: 'Approve proposal',
+      detail: 'memory review',
+    },
+    {
+      icon: FileText,
+      title: 'Preview recall',
+      detail: 'Context view',
+    },
+  ]
+
+  return (
+    <Panel title="First capture path" eyebrow="Empty store">
+      <div className="grid gap-3 md:grid-cols-4">
+        {steps.map((step, index) => {
+          const Icon = step.icon
+          return (
+            <div key={step.title} className="rounded-md border border-border bg-background/45 p-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Icon className="size-4 text-primary" />
+                <span>
+                  {index + 1}. {step.title}
+                </span>
+              </div>
+              <code className="mt-3 block break-all rounded-sm bg-muted/55 px-2 py-1.5 text-xs text-muted-foreground">
+                {step.detail}
+              </code>
+            </div>
+          )
+        })}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button variant="outline" onClick={onEvidenceOpen}>
+          <ClipboardCheck />
+          Review queue
+        </Button>
+        <Button onClick={onContextOpen}>
+          <FileText />
+          Preview context
+        </Button>
+      </div>
+    </Panel>
   )
 }
 

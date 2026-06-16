@@ -7,6 +7,11 @@ export function registerImportCommand(program: Command) {
     .command('import <input>')
     .description('Import memories from a file')
     .option('-f, --format <format>', 'Import format (zip, json, markdown)', 'json')
+    .option(
+      '--collision <mode>',
+      'Collision handling for existing IDs (skip, replace, rename, supersede)',
+      'skip'
+    )
     .action(async (input, options) => {
       const basePath = getProjectMemoryPath(process.cwd())
       const inputPath = resolve(input)
@@ -18,6 +23,7 @@ export function registerImportCommand(program: Command) {
           format: options.format,
           inputPath,
           basePath,
+          collision: options.collision,
         })
 
         console.log(`\nImport completed:`)

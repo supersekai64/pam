@@ -5,6 +5,7 @@ import { mkdir } from 'node:fs/promises'
 import { generateId } from './id.js'
 import { loadAutoCaptureConfig } from './auto-capture.js'
 import { createMemory, listMemories } from './storage.js'
+import { redactContent } from './redaction.js'
 import type { MemoryType } from './types.js'
 
 // Lifecycle hook event types
@@ -51,6 +52,7 @@ export async function recordHookEvent(
 
   const fullEvent: HookEvent = {
     ...event,
+    data: redactHookData(event.data ?? {}),
     id,
     timestamp,
   }
@@ -59,7 +61,10 @@ export async function recordHookEvent(
   const logFile = join(observationsDir, `${timestamp.split('T')[0]}.jsonl`)
   await writeFile(logFile, JSON.stringify(fullEvent) + '\n', { flag: 'a', encoding: 'utf-8' })
 
-  await proposeDurableMemoryFromHookEvent(basePath, fullEvent)
+  await proposeDurableMemoryFromHookEvent(basePath, {
+    ...fullEvent,
+    data: event.data ?? {},
+  })
 
   // If it's a session-end event, create a session summary
   if (event.type === 'session-end' && event.session_id) {
@@ -67,6 +72,33 @@ export async function recordHookEvent(
   }
 
   return fullEvent
+}
+
+function redactHookData(value: unknown): Record<string, unknown> {
+  const redacted = redactUnknown(value)
+  return isRecord(redacted) ? redacted : {}
+}
+
+function redactUnknown(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return redactContent(value).content
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(redactUnknown)
+  }
+
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [key, redactUnknown(nestedValue)])
+    )
+  }
+
+  return value
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 interface HookMemoryProposal {

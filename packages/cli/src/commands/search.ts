@@ -3,6 +3,7 @@ import {
   MemoryIndex,
   SemanticIndex,
   getProjectMemoryPath,
+  indexAllMemories,
   listMemories,
   readMemory,
 } from 'pamh-core'
@@ -74,20 +75,42 @@ export function registerSearchCommand(program: Command) {
         return
       }
 
+      await indexAllMemories(basePath)
       const index = new MemoryIndex(basePath)
 
-      const results = index.search({
+      let usedNaturalFallback = false
+      let results = index.search({
         query,
         type: options.type,
         tag: options.tag,
         limit,
+        natural: false,
       })
+
+      if (query && results.length === 0) {
+        results = index.search({
+          query,
+          type: options.type,
+          tag: options.tag,
+          limit,
+          natural: true,
+        })
+        usedNaturalFallback = results.length > 0
+      }
 
       index.close()
 
       if (results.length === 0) {
-        console.log('No memories found')
+        console.log(
+          query
+            ? 'No memories found. Try --semantic for embedding search if lexical matching is too narrow.'
+            : 'No memories found'
+        )
         return
+      }
+
+      if (usedNaturalFallback) {
+        console.log('No exact lexical hits; showing related matches from tags and synonyms.\n')
       }
 
       for (const result of results) {

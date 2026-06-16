@@ -15,29 +15,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getStatusTone } from '@/lib/status-tone'
 import { cn } from '@/lib/utils'
-
-interface MemoryMetadata {
-  id: string
-  type: string
-  status: string
-  updated_at: string
-  tags: string[]
-}
-
-interface Memory {
-  metadata: MemoryMetadata
-  content: string
-}
-
-interface SearchResult extends MemoryMetadata {
-  content: string
-}
-
-interface ApiConceptNode {
-  title: string
-  occurrences: number
-  typeCounts: Record<string, number>
-}
+import type { ApiConceptNode, Memory, MemoryMetadata, SearchResult } from '@/types'
 
 const memoryTypes = ['decision', 'knowledge', 'mistake', 'rule', 'preference', 'session', 'task']
 const memoryTypePriority = new Map(memoryTypes.map((type, index) => [type, index]))

@@ -13,5 +13,22 @@ export default defineConfig({
   build: {
     outDir: 'dist/public',
     emptyOutDir: false,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/node_modules/three/')) return 'three'
+          if (id.includes('/node_modules/react') || id.includes('/node_modules/react-dom')) {
+            return 'react'
+          }
+          if (
+            id.includes('/node_modules/radix-ui/') ||
+            id.includes('/node_modules/lucide-react/')
+          ) {
+            return 'ui-vendor'
+          }
+        },
+      },
+    },
   },
 })

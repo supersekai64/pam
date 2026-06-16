@@ -1,5 +1,14 @@
+import { existsSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { Command } from 'commander'
-import { checkIndexConsistency, MemoryIndex, getProjectMemoryPath } from 'pamh-core'
+import {
+  MemoryIndex,
+  checkIndexConsistency,
+  findMemoryBase,
+  getProjectMemoryPath,
+  scanMemoryFileIssues,
+} from 'pamh-core'
 
 export function registerDoctorCommand(program: Command) {
   const doctor = program.command('doctor').description('Diagnose memory system health')
@@ -12,6 +21,7 @@ export function registerDoctorCommand(program: Command) {
 
       console.log('Checking index consistency...')
       const report = await checkIndexConsistency(basePath)
+      const issues = await scanMemoryFileIssues(basePath)
 
       console.log(`\nFiles found: ${report.totalFiles}`)
       console.log(`Indexed: ${report.totalIndexed}`)
@@ -30,8 +40,19 @@ export function registerDoctorCommand(program: Command) {
         }
       }
 
-      if (report.missingInIndex.length === 0 && report.missingInFiles.length === 0) {
-        console.log('\n✓ Index is consistent')
+      if (issues.length > 0) {
+        console.log(`\nInvalid Markdown files (${issues.length}):`)
+        for (const issue of issues) {
+          console.log(`  - ${issue.path}: ${issue.error}`)
+        }
+      }
+
+      if (
+        report.missingInIndex.length === 0 &&
+        report.missingInFiles.length === 0 &&
+        issues.length === 0
+      ) {
+        console.log('\nOK: Index and Markdown files are consistent')
       }
     })
 
@@ -70,4 +91,90 @@ export function registerDoctorCommand(program: Command) {
         }
       }
     })
+
+  doctor
+    .command('integrations')
+    .description('Check local agent integration files and first-run readiness')
+    .action(async () => {
+      const cwd = process.cwd()
+      const memoryPath = findMemoryBase(cwd) ?? getProjectMemoryPath(cwd)
+
+      console.log('PAMH integration doctor\n')
+      reportCheck('CLI command', 'memory server start')
+      reportCheck('.ai-memory store', existsSync(memoryPath) ? memoryPath : 'missing')
+
+      const checks = [
+        await checkTextFile(join(cwd, 'AGENTS.md'), ['PAMH Memory', 'memory search']),
+        await checkTextFile(join(cwd, 'CLAUDE.md'), ['PAMH Memory', 'memory search']),
+        await checkTextFile(join(cwd, '.github', 'copilot-instructions.md'), ['PAMH Memory']),
+        await checkTextFile(join(cwd, '.cursor', 'rules', 'pamh.mdc'), ['PAMH Memory']),
+        await checkJsonFile(join(cwd, '.claude', 'settings.json'), ['memory hook record']),
+        await checkJsonFile(join(cwd, '.mcp.json'), ['server', 'start']),
+        await checkJsonFile(join(cwd, '.vscode', 'mcp.json'), ['server', 'start']),
+        await checkJsonFile(join(cwd, '.cursor', 'mcp.json'), ['server', 'start']),
+      ]
+
+      for (const check of checks) {
+        reportCheck(check.label, check.ok ? 'ok' : check.reason)
+      }
+
+      const failed = checks.filter((check) => !check.ok)
+      if (failed.length > 0) {
+        console.log('\nRun `memory init` to regenerate missing or stale project integrations.')
+        process.exitCode = 1
+        return
+      }
+
+      console.log('\nOK: Project integrations look ready. Reload your agent client if it was open.')
+    })
+}
+
+interface IntegrationCheck {
+  label: string
+  ok: boolean
+  reason: string
+}
+
+async function checkTextFile(filePath: string, required: string[]): Promise<IntegrationCheck> {
+  if (!existsSync(filePath)) return { label: filePath, ok: false, reason: 'missing' }
+
+  const raw = await readFile(filePath, 'utf-8')
+  if (raw.includes('--project')) return { label: filePath, ok: false, reason: 'uses --project' }
+  if (/Use [`']global[`']/.test(raw)) {
+    return { label: filePath, ok: false, reason: 'mentions unsupported global scope' }
+  }
+
+  const missing = required.filter((term) => !raw.includes(term))
+  return {
+    label: filePath,
+    ok: missing.length === 0,
+    reason: missing.length === 0 ? 'ok' : `missing ${missing.join(', ')}`,
+  }
+}
+
+async function checkJsonFile(filePath: string, required: string[]): Promise<IntegrationCheck> {
+  if (!existsSync(filePath)) return { label: filePath, ok: false, reason: 'missing' }
+
+  try {
+    const raw = await readFile(filePath, 'utf-8')
+    JSON.parse(raw)
+    if (raw.includes('--project')) return { label: filePath, ok: false, reason: 'uses --project' }
+    const missing = required.filter((term) => !raw.includes(term))
+    return {
+      label: filePath,
+      ok: missing.length === 0,
+      reason: missing.length === 0 ? 'ok' : `missing ${missing.join(', ')}`,
+    }
+  } catch (error) {
+    return {
+      label: filePath,
+      ok: false,
+      reason: `invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+    }
+  }
+}
+
+function reportCheck(label: string, result: string): void {
+  const ok = result !== 'missing' && result !== 'uses --project' && !result.startsWith('invalid')
+  console.log(`${ok ? 'OK' : 'FAIL'} ${label}: ${result}`)
 }

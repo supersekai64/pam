@@ -60,6 +60,24 @@ describe('MemoryIndex', () => {
     expect(results[0].content).toContain('PostgreSQL')
   })
 
+  it('should fall back to natural query synonyms when exact search misses', async () => {
+    await createMemory(basePath, {
+      type: 'decision',
+      scope: 'project',
+      content: 'Use PostgreSQL for production persistence',
+      tags: ['architecture'],
+    })
+
+    const index = new MemoryIndex(basePath)
+    const exactResults = index.search({ query: 'database choice', natural: false })
+    const naturalResults = index.search({ query: 'database choice' })
+    index.close()
+
+    expect(exactResults).toHaveLength(0)
+    expect(naturalResults.length).toBeGreaterThan(0)
+    expect(naturalResults[0].content).toContain('PostgreSQL')
+  })
+
   it('should search by tag', async () => {
     await createMemory(basePath, {
       type: 'decision',

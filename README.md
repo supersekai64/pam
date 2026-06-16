@@ -14,6 +14,8 @@ same CLI, MCP, API, and UI surfaces.
 
 Any compatible agent can read the same context, propose updates, and reuse
 project knowledge across sessions.
+PAMH provides the shared memory layer; your agent still needs the PAMH MCP tools
+or generated hooks to capture memories.
 
 Key advantages:
 
@@ -107,15 +109,28 @@ Add PAMH to your MCP-compatible tool (Cursor, VSCode with Copilot, Claude Code, 
 
 See [docs/mcp.md](docs/mcp.md) for detailed configuration examples.
 
-### 3. Work with your AI agent (automatic mode)
+### 3. Verify the setup
 
-By default, PAMH uses **assisted mode**: your AI agent automatically proposes memories, and you approve or reject them.
+```bash
+memory doctor integrations
+memory smoke-test agent
+memory review
+```
+
+`doctor integrations` checks the generated client files, `smoke-test agent`
+creates a proposed test memory, and `review` shows proposals waiting for
+approval.
+
+### 4. Work with your AI agent (assisted capture)
+
+By default, PAMH uses **assisted mode**: an integrated agent proposes memories
+through PAMH tools or hooks, and you approve or reject them.
 
 **Workflow:**
 
 1. Work normally with your AI agent (Cursor, Copilot, Claude Code, etc.)
 2. The agent proposes memories when it learns something important
-3. Review proposals with `memory ui` or `memory list --status proposed`
+3. Review proposals with `memory review`, `memory ui`, or `memory list --status proposed`
 4. Approve with `memory approve <id>` or reject with `memory reject <id>`
 
 **Example:**
@@ -131,7 +146,7 @@ memory approve mem_abc123
 memory ui --open
 ```
 
-### 4. Manual mode (optional)
+### 5. Manual mode (optional)
 
 You can also add memories manually:
 
@@ -211,6 +226,8 @@ memory init
 - [UI](docs/ui.md)
 - [Intelligence Layer](docs/intelligence.md)
 - [Capture Modes](docs/capture-modes.md)
+- [Role Examples](docs/examples.md)
+- [Glossary](docs/glossary.md)
 - [Security](docs/security.md)
 - [Concepts](docs/concepts.md)
 - [FAQ](docs/faq.md)

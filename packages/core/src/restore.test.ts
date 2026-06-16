@@ -50,6 +50,27 @@ describe('restore', () => {
     expect(results.some((result) => result.id === memory.metadata.id)).toBe(true)
   })
 
+  it('should restore a physically deleted memory from its latest backup', async () => {
+    const memory = await createMemory(basePath, {
+      type: 'decision',
+      scope: 'project',
+      tags: ['backup'],
+      content: 'Recoverable physical delete',
+    })
+
+    await deleteMemory(basePath, memory.metadata.id, { physical: true })
+    expect(await readMemory(basePath, memory.metadata.id)).toBeNull()
+
+    const restored = await restoreMemory(basePath, memory.metadata.id)
+    expect(restored).toBe(true)
+
+    const active = await readMemory(basePath, memory.metadata.id)
+    expect(active!.metadata.status).toBe('active')
+    expect(active!.metadata.type).toBe('decision')
+    expect(active!.metadata.tags).toEqual(['backup'])
+    expect(active!.content).toBe('Recoverable physical delete')
+  })
+
   it('should restore an archived memory', async () => {
     const memory = await createMemory(basePath, {
       type: 'knowledge',

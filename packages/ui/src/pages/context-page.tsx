@@ -3,27 +3,7 @@ import type { ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-
-interface ContextSource {
-  id: string
-  created_at: string
-  updated_at: string
-}
-
-interface ContextExclusion {
-  id: string
-  type: string
-  reason: string
-}
-
-interface ContextPreview {
-  content: string
-  tokenEstimate: number
-  memoryCount: number
-  sources: ContextSource[]
-  generatedAt: string
-  exclusions: ContextExclusion[]
-}
+import type { ContextPreview } from '@/types'
 
 export function ContextPage({
   contextPreview,

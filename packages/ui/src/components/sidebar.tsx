@@ -6,18 +6,15 @@ import {
   LayoutDashboard,
   ListFilter,
   Shield,
-  Trash2,
   type LucideIcon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getStatusTone } from '@/lib/status-tone'
 import { cn } from '@/lib/utils'
-
-type WorkspaceView = 'dashboard' | 'map' | 'evidence' | 'context' | 'governance' | 'knowledge'
+import type { WorkspaceView } from '@/types'
 
 interface Stats {
   active: number
@@ -61,14 +58,12 @@ const statusHints: Record<string, string> = {
 }
 
 export function Sidebar({
-  onReset,
   onStatusSelect,
   onViewChange,
   selectedStatus,
   stats,
   view,
 }: {
-  onReset: () => void
   onStatusSelect: (status: string) => void
   onViewChange: (view: WorkspaceView) => void
   selectedStatus: string
@@ -154,23 +149,6 @@ export function Sidebar({
           </Hint>
         ))}
       </div>
-
-      <Hint
-        side="right"
-        label="DEBUG - Deletes the entire .ai-memory directory of the current project. Irreversible. To be removed before release."
-      >
-        <button
-          className="flex items-center justify-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive transition hover:bg-destructive/20"
-          type="button"
-          onClick={onReset}
-        >
-          <Trash2 className="size-4" />
-          Reset project memory
-          <Badge className="ml-1 bg-destructive/20 text-destructive hover:bg-destructive/20">
-            debug
-          </Badge>
-        </button>
-      </Hint>
     </aside>
   )
 }

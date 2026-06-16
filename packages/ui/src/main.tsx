@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ConceptsPage as ConceptsRoutePage } from '@/pages/concepts-page'
 import { ContextPage } from '@/pages/context-page'
@@ -43,289 +44,30 @@ import { DashboardPage } from '@/pages/dashboard-page'
 import { EvidencePage } from '@/pages/evidence-page'
 import { GovernancePage as GovernanceRoutePage } from '@/pages/governance-page'
 import { KnowledgePage as KnowledgeRoutePage } from '@/pages/knowledge-page'
-
-type Store = 'project'
-type WorkspaceView = 'dashboard' | 'map' | 'evidence' | 'context' | 'governance' | 'knowledge'
-export type MapLayout = '2d' | '3d'
-export type ConceptDepth = 'top' | 'expanded'
-type MemoryAction =
-  | 'archive'
-  | 'restore'
-  | 'delete'
-  | 'physical-delete'
-  | 'approve'
-  | 'reject'
-  | 'mark-noise'
+import type {
+  ApiConceptGraph,
+  ApiConceptNode,
+  ConceptDepth,
+  ConceptGraph,
+  ContextPreview,
+  GraphDatum,
+  GraphEdge,
+  KnowledgeGraphResponse,
+  KnowledgeRelation,
+  MapLayout,
+  MemoriesResponse,
+  Memory,
+  MemoryAction,
+  MemoryMetadata,
+  MemoryRecommendation,
+  RecommendationsResponse,
+  SearchResult,
+  StatsResponse,
+  Store,
+  WorkspaceView,
+} from '@/types'
 
 const PROJECT_STORE: Store = 'project'
-
-const EMPTY_STATS: Stats = {
-  total: 0,
-  active: 0,
-  deleted: 0,
-  archived: 0,
-  proposed: 0,
-  noise: 0,
-  byType: {},
-  byScope: {},
-  tags: {},
-}
-
-const EMPTY_STATS_RESPONSE: StatsResponse = {
-  project: {
-    name: '',
-    path: '',
-    memoryPath: '',
-  },
-  stats: EMPTY_STATS,
-  rawStats: EMPTY_STATS,
-  rawTotalMemories: 0,
-  excludedNoiseMemories: 0,
-}
-
-const EMPTY_CONCEPT_GRAPH: ApiConceptGraph = {
-  totalMemories: 0,
-  rawTotalMemories: 0,
-  excludedNoiseMemories: 0,
-  ignoredConcepts: [],
-  calculation: '',
-  concepts: [],
-  edges: [],
-  exclusions: [],
-}
-
-const EMPTY_CONTEXT_PREVIEW: ContextPreview = {
-  content: '',
-  tokenEstimate: 0,
-  memoryCount: 0,
-  sources: [],
-  topConcepts: [],
-  generatedAt: '',
-  exclusions: [],
-}
-
-const EMPTY_RECOMMENDATIONS: RecommendationsResponse = {
-  recommendations: [],
-  metrics: {
-    total_memories: 0,
-    active_memories: 0,
-    proposed_recommendations: 0,
-    source_preservation_rate: 1,
-    top_concept_count: 0,
-  },
-}
-
-const EMPTY_KNOWLEDGE_GRAPH: KnowledgeGraphResponse = {
-  entities: [],
-  relations: [],
-  metrics: {
-    entity_count: 0,
-    relation_count: 0,
-    evidence_coverage: 0,
-  },
-}
-
-export interface MemoryMetadata {
-  id: string
-  type: string
-  scope: string
-  status: string
-  created_at: string
-  updated_at: string
-  tags: string[]
-  source: string
-  salience?: number
-}
-
-export interface Memory {
-  metadata: MemoryMetadata
-  content: string
-}
-
-export interface SearchResult extends MemoryMetadata {
-  content: string
-  file_path: string
-}
-
-interface Stats {
-  total: number
-  active: number
-  deleted: number
-  archived: number
-  proposed: number
-  noise: number
-  byType: Record<string, number>
-  byScope: Record<string, number>
-  tags: Record<string, number>
-}
-
-export interface StatsResponse {
-  project: {
-    name: string
-    path: string
-    memoryPath: string
-  }
-  stats: Stats
-  rawStats: Stats
-  rawTotalMemories: number
-  excludedNoiseMemories: number
-}
-
-interface MemoriesResponse {
-  memories: Array<Memory | SearchResult>
-  totalMatching: number
-  rawTotalMemories: number
-  excludedNoiseMemories: number
-}
-
-interface ApiConceptSample {
-  id: string
-  type: string
-  scope: string
-  status: string
-  source: string
-  created_at: string
-  updated_at: string
-  tags: string[]
-  content: string
-}
-
-interface ContextSource extends ApiConceptSample {
-  section: string
-  reasons: string[]
-}
-
-interface ContextExclusion {
-  id: string
-  type: string
-  reason: string
-}
-
-export interface ApiConceptNode {
-  id: string
-  title: string
-  category: 'tag' | 'keyword'
-  rank: number
-  score: number
-  occurrences: number
-  searchTerm: string
-  evidence: string[]
-  samples: ApiConceptSample[]
-  typeCounts: Record<string, number>
-  scopeCounts: Record<string, number>
-  sourceCounts: Record<string, number>
-  lastUpdated: string | null
-}
-
-interface ApiConceptEdge {
-  source: string
-  target: string
-  weight: number
-}
-
-export interface ApiConceptGraph {
-  totalMemories: number
-  rawTotalMemories: number
-  excludedNoiseMemories: number
-  ignoredConcepts: string[]
-  calculation: string
-  concepts: ApiConceptNode[]
-  edges: ApiConceptEdge[]
-  exclusions: ContextExclusion[]
-}
-
-export interface ContextPreview {
-  content: string
-  tokenEstimate: number
-  memoryCount: number
-  sources: ContextSource[]
-  topConcepts: Array<{ title: string; occurrences: number; score: number }>
-  generatedAt: string
-  exclusions: ContextExclusion[]
-}
-
-interface MemoryRecommendation {
-  id: string
-  type: string
-  status: string
-  title: string
-  explanation: string
-  evidence_ids: string[]
-  action?: string
-  payload?: {
-    source_ids?: string[]
-    target_id?: string
-    replacement_id?: string
-    left_id?: string
-    right_id?: string
-    concept?: string
-    count?: number
-    compression_ratio?: number
-  }
-}
-
-export interface RecommendationsResponse {
-  recommendations: MemoryRecommendation[]
-  metrics: {
-    total_memories: number
-    active_memories: number
-    proposed_recommendations: number
-    source_preservation_rate: number
-    top_concept_count: number
-  }
-}
-
-interface KnowledgeEntity {
-  id: string
-  label: string
-  type: string
-  evidence_ids: string[]
-}
-
-interface KnowledgeRelation {
-  id: string
-  source: string
-  target: string
-  type: string
-  evidence_ids: string[]
-  explanation: string
-}
-
-export interface KnowledgeGraphResponse {
-  entities: KnowledgeEntity[]
-  relations: KnowledgeRelation[]
-  metrics: {
-    entity_count: number
-    relation_count: number
-    evidence_coverage: number
-  }
-}
-
-interface GraphDatum {
-  id: string
-  title: string
-  category: 'tag' | 'keyword'
-  color: number
-  radius: number
-  position: THREE.Vector3
-  searchTerm: string
-  score: number
-  occurrences: number
-  labelVisible: boolean
-  detailHtml: string
-}
-
-interface GraphEdge {
-  source: string
-  target: string
-  weight: number
-}
-
-interface ConceptGraph {
-  nodes: GraphDatum[]
-  edges: GraphEdge[]
-  maxEdgeWeight: number
-}
 
 const memoryTypes = [
   'decision',
@@ -560,23 +302,6 @@ function App() {
     setMessage('')
   }
 
-  const clearLoadedProjectState = () => {
-    setSelected(null)
-    setSelectedId(null)
-    setIsCreating(false)
-    setFocusedConcept('')
-    setQuery('')
-    setStatus('active')
-    setMemories([])
-    setMemoryTotal(0)
-    setConceptGraph(EMPTY_CONCEPT_GRAPH)
-    setContextPreview(EMPTY_CONTEXT_PREVIEW)
-    setStatsResponse(EMPTY_STATS_RESPONSE)
-    setRecommendations(EMPTY_RECOMMENDATIONS)
-    setKnowledgeGraph(EMPTY_KNOWLEDGE_GRAPH)
-    setMemoryDirectory(new Map())
-  }
-
   const changeWorkspaceView = (view: WorkspaceView) => {
     if (view !== workspaceView) {
       clearConceptFocus()
@@ -682,6 +407,14 @@ function App() {
     }
 
     if (action === 'delete' || action === 'physical-delete') {
+      if (action === 'physical-delete') {
+        const confirmation = window.prompt(`Type ${id} to permanently delete this memory.`)
+        if (confirmation !== id) {
+          setMessage(`Physical delete cancelled for ${id}`)
+          return
+        }
+      }
+
       await api(
         `/api/memories/${id}?store=${PROJECT_STORE}&physical=${action === 'physical-delete'}`,
         {
@@ -763,27 +496,6 @@ function App() {
     await refresh()
   }
 
-  async function resetProjectMemory() {
-    const confirmed = window.confirm(
-      'DEBUG: This will permanently delete the entire .ai-memory directory for the current project. Continue?'
-    )
-    if (!confirmed) return
-    const response = await api<{ ok: boolean; basePath: string; removed: boolean }>(
-      `/api/debug/reset?store=${PROJECT_STORE}`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ confirm: 'RESET' }),
-      }
-    )
-    clearLoadedProjectState()
-    setMessage(
-      response.removed
-        ? `Project memory reset (${response.basePath}).`
-        : `Nothing to reset (${response.basePath} did not exist).`
-    )
-    await refresh()
-  }
-
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background text-foreground">
@@ -792,7 +504,6 @@ function App() {
             selectedStatus={status}
             stats={statsResponse?.stats ?? null}
             view={workspaceView}
-            onReset={resetProjectMemory}
             onStatusSelect={openStatusFilter}
             onViewChange={changeWorkspaceView}
           />
@@ -958,6 +669,8 @@ function PageRouter({
       <DashboardPage
         conceptGraph={conceptGraph}
         memoryTotal={totalMatching}
+        onContextOpen={() => onGoToPage('context')}
+        onEvidenceOpen={() => onGoToPage('evidence')}
         statsResponse={statsResponse}
       />
     )
@@ -1762,6 +1475,10 @@ function isDisplayKnowledgeRelation(relation: KnowledgeRelation): boolean {
 
 interface RecommendationDescriptor {
   summary: string
+  rule: string
+  confidence: number
+  before: string
+  after: string
   acceptLabel: string
   acceptHint: string
   rejectHint: string
@@ -1786,6 +1503,10 @@ function describeRecommendation(rec: MemoryRecommendation): RecommendationDescri
       }
       return {
         summary: `Creates one proposed "knowledge" memory that consolidates ${sources} sources and archives the originals (they leave the LLM context but stay restorable from Evidence). Re-clicking is safe: if the same set was already distilled, no duplicate is created.`,
+        rule: 'Recurring concept: at least 3 active or proposed memories share a tag or keyword.',
+        confidence: confidenceFromEvidence(sources, 3, 92),
+        before: `${sources} memories can repeat separately in the LLM context.`,
+        after: 'One proposed distillation is created; source memories are archived and linked.',
         acceptLabel: 'Consolidate into one memory',
         acceptHint:
           'Creates the distilled memory and archives the source memories. Idempotent — clicking twice does not duplicate.',
@@ -1800,6 +1521,10 @@ function describeRecommendation(rec: MemoryRecommendation): RecommendationDescri
       return {
         summary:
           'Will mark this low-signal memory as Noise. It is hidden from the LLM context and the map, but kept for audit.',
+        rule: 'Low signal: very short content, generated fragment, or explicit low-value tag.',
+        confidence: 84,
+        before: 'The memory can remain visible in the map and context candidates.',
+        after: 'The memory is marked as noise, hidden from context, and remains restorable.',
         acceptLabel: 'Mark as noise',
         acceptHint: 'Move this memory to the Noise bucket. Reversible from the Evidence view.',
         rejectHint: 'Keep this memory visible and stop suggesting it.',
@@ -1815,6 +1540,10 @@ function describeRecommendation(rec: MemoryRecommendation): RecommendationDescri
       return {
         summary:
           'Will archive the older memory because a newer one appears to replace it. Archived memories stay searchable but are not loaded into the LLM context.',
+        rule: 'Obsolete pair: newer decision overlaps the older one and uses replacement language.',
+        confidence: 78,
+        before: 'Both memories can compete for the same context slot.',
+        after: 'The older memory is archived while the replacement stays reachable.',
         acceptLabel: 'Archive older',
         acceptHint: 'Archive the older memory. Restorable from the Evidence view.',
         rejectHint: 'Keep both memories Active and stop suggesting this archival.',
@@ -1830,6 +1559,10 @@ function describeRecommendation(rec: MemoryRecommendation): RecommendationDescri
       return {
         summary:
           'Choose which memory is preferred. PAMH will keep that memory active, archive the opposing memory, and link the archived memory to the preferred one.',
+        rule: 'Contradiction: memories share important terms and contain opposing language.',
+        confidence: 70,
+        before: 'Both memories may give the agent conflicting guidance.',
+        after: 'Your chosen memory stays active; the opposing memory is archived and linked.',
         acceptLabel: 'Inspect',
         acceptHint: 'Open the evidence memories to review the contradiction.',
         rejectHint: 'Dismiss this contradiction warning.',
@@ -1844,6 +1577,13 @@ function describeRecommendation(rec: MemoryRecommendation): RecommendationDescri
       return {
         summary:
           'Heads-up: this concept recurs across the current LLM context. Consider creating a curated knowledge or rule to anchor it.',
+        rule: 'Strong concept: at least 5 visible memories share the same tag or keyword.',
+        confidence:
+          typeof rec.payload?.count === 'number'
+            ? confidenceFromEvidence(rec.payload.count, 5, 88)
+            : 72,
+        before: 'The concept is spread across several independent memories.',
+        after: 'You can curate a single anchor memory and keep the context easier to scan.',
         acceptLabel: 'Open evidence',
         acceptHint: 'Open the Evidence view filtered by this concept.',
         rejectHint: 'Dismiss this hint.',
@@ -1856,6 +1596,12 @@ function describeRecommendation(rec: MemoryRecommendation): RecommendationDescri
         summary: rec.action
           ? `Will apply the "${rec.action.replaceAll('_', ' ')}" action on ${evidenceCount} memory${evidenceCount > 1 ? 'ies' : ''}.`
           : 'No automatic action — review the evidence manually.',
+        rule: 'Generic recommendation: inspect the linked evidence before acting.',
+        confidence: confidenceFromEvidence(evidenceCount, 1, 74),
+        before: 'The current memory state remains unchanged.',
+        after: rec.action
+          ? `The ${rec.action.replaceAll('_', ' ')} action is applied.`
+          : 'No automatic action is applied.',
         acceptLabel: rec.action ? 'Apply' : 'Inspect',
         acceptHint: 'Apply this recommendation.',
         rejectHint: 'Dismiss this recommendation.',
@@ -1863,6 +1609,12 @@ function describeRecommendation(rec: MemoryRecommendation): RecommendationDescri
         details,
       }
   }
+}
+
+function confidenceFromEvidence(count: number, threshold: number, cap: number): number {
+  if (count <= 0) return 50
+  const overThreshold = Math.max(0, count - threshold)
+  return Math.min(cap, 62 + overThreshold * 6 + Math.min(count, threshold) * 4)
 }
 
 function GovernancePanel({
@@ -2022,6 +1774,26 @@ function GovernancePanel({
                     <p className="text-sm leading-5 text-muted-foreground">
                       {recommendation.explanation}
                     </p>
+                    <div className="grid gap-2 md:grid-cols-[1fr_7rem]">
+                      <div className="rounded-sm border border-border bg-background/55 p-2 text-sm leading-5">
+                        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                          Rule
+                        </span>
+                        <p className="mt-1 text-foreground">{descriptor.rule}</p>
+                      </div>
+                      <div className="rounded-sm border border-border bg-background/55 p-2 text-sm">
+                        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                          Score
+                        </span>
+                        <p className="mt-1 text-lg font-semibold text-foreground">
+                          {descriptor.confidence}%
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <PreviewTile label="Before" value={descriptor.before} />
+                      <PreviewTile label="After" value={descriptor.after} />
+                    </div>
                     <div className="rounded-sm border border-primary/20 bg-primary/8 p-2 text-sm leading-5">
                       <span className="text-xs font-semibold uppercase tracking-widest text-primary/80">
                         If you accept
@@ -2125,6 +1897,17 @@ function GovernancePanel({
         </Panel>
       </div>
     </section>
+  )
+}
+
+function PreviewTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-sm bg-background/45 p-2 text-sm leading-5">
+      <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </span>
+      <p className="mt-1 text-foreground">{value}</p>
+    </div>
   )
 }
 
@@ -2924,16 +2707,6 @@ function roundRect(
   context.lineTo(x, y + radius)
   context.quadraticCurveTo(x, y, x + radius, y)
   context.closePath()
-}
-
-async function api<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(path, {
-    ...init,
-    headers: { 'content-type': 'application/json', ...init.headers },
-  })
-  const body = (await response.json()) as T & { error?: string }
-  if (!response.ok) throw new Error(body.error ?? `Request failed: ${response.status}`)
-  return body
 }
 
 function parseTags(value: string): string[] {

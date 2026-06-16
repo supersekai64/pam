@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 
-import { memoryCheckpoint } from '../mcp/tools.js'
+import { memoryCheckpoint } from 'pamh-protocol'
 
 function collect(value: string, previous: string[] = []) {
   return [...previous, value]

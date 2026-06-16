@@ -1,9 +1,11 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import AdmZip from 'adm-zip'
 import { parseMarkdown, serializeMarkdown } from './markdown.js'
-import { generateId } from './id.js'
+import { assertMemoryId, generateId } from './id.js'
 import { MemoryIndex } from './indexer.js'
+import { findMemoryFile } from './storage.js'
+import { supersedeMemory } from './supersession.js'
 import {
   assertMemoryStatus,
   normalizeStoredMemoryScope,
@@ -12,11 +14,13 @@ import {
 } from './types.js'
 
 export type ImportFormat = 'json' | 'zip' | 'markdown'
+export type ImportCollisionMode = 'skip' | 'replace' | 'rename' | 'supersede'
 
 export interface ImportOptions {
   format: ImportFormat
   inputPath: string
   basePath: string
+  collision?: ImportCollisionMode
 }
 
 export interface ImportResult {
@@ -27,28 +31,48 @@ export interface ImportResult {
 
 export async function importMemories(options: ImportOptions): Promise<ImportResult> {
   const { format, inputPath, basePath } = options
+  const collision = normalizeImportCollisionMode(options.collision)
 
   switch (format) {
     case 'json':
-      return importFromJson(inputPath, basePath)
+      return importFromJson(inputPath, basePath, collision)
     case 'zip':
-      return importFromZip(inputPath, basePath)
+      return importFromZip(inputPath, basePath, collision)
     case 'markdown':
-      return importFromMarkdown(inputPath, basePath)
+      return importFromMarkdown(inputPath, basePath, collision)
     default:
       throw new Error(`Unsupported import format: ${format}`)
   }
 }
 
-async function importFromMarkdown(inputPath: string, basePath: string): Promise<ImportResult> {
+function normalizeImportCollisionMode(value: unknown): ImportCollisionMode {
+  if (value === undefined || value === null || value === '') return 'skip'
+  if (value === 'skip' || value === 'replace' || value === 'rename' || value === 'supersede') {
+    return value
+  }
+  throw new Error(`Invalid import collision mode: ${String(value)}`)
+}
+
+async function importFromMarkdown(
+  inputPath: string,
+  basePath: string,
+  collision: ImportCollisionMode
+): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, skipped: 0, errors: [] }
 
   try {
     const raw = await readFile(inputPath, 'utf-8')
     const memory = parseMarkdown(raw)
 
-    if (!memory.metadata.id) {
-      memory.metadata.id = generateId()
+    const preparation = await prepareImportedMemory(basePath, memory, collision)
+    if (preparation.skipReason) {
+      result.errors.push(preparation.skipReason)
+      result.skipped++
+      return result
+    }
+    if (preparation.handled) {
+      result.imported++
+      return result
     }
 
     const filePath = await writeMemoryToFile(basePath, memory)
@@ -64,7 +88,11 @@ async function importFromMarkdown(inputPath: string, basePath: string): Promise<
   return result
 }
 
-async function importFromJson(inputPath: string, basePath: string): Promise<ImportResult> {
+async function importFromJson(
+  inputPath: string,
+  basePath: string,
+  collision: ImportCollisionMode
+): Promise<ImportResult> {
   const raw = await readFile(inputPath, 'utf-8')
   const data = JSON.parse(raw)
 
@@ -90,6 +118,17 @@ async function importFromJson(inputPath: string, basePath: string): Promise<Impo
         content: item.content || '',
       }
 
+      const preparation = await prepareImportedMemory(basePath, memory, collision)
+      if (preparation.skipReason) {
+        result.errors.push(preparation.skipReason)
+        result.skipped++
+        continue
+      }
+      if (preparation.handled) {
+        result.imported++
+        continue
+      }
+
       const filePath = await writeMemoryToFile(basePath, memory)
       const index = new MemoryIndex(basePath)
       index.indexMemory(memory, filePath)
@@ -104,7 +143,11 @@ async function importFromJson(inputPath: string, basePath: string): Promise<Impo
   return result
 }
 
-async function importFromZip(inputPath: string, basePath: string): Promise<ImportResult> {
+async function importFromZip(
+  inputPath: string,
+  basePath: string,
+  collision: ImportCollisionMode
+): Promise<ImportResult> {
   const zip = new AdmZip(inputPath)
   const entries = zip.getEntries()
 
@@ -119,8 +162,15 @@ async function importFromZip(inputPath: string, basePath: string): Promise<Impor
       const content = entry.getData().toString('utf-8')
       const memory = parseMarkdown(content)
 
-      if (!memory.metadata.id) {
-        memory.metadata.id = generateId()
+      const preparation = await prepareImportedMemory(basePath, memory, collision)
+      if (preparation.skipReason) {
+        result.errors.push(`${entry.entryName}: ${preparation.skipReason}`)
+        result.skipped++
+        continue
+      }
+      if (preparation.handled) {
+        result.imported++
+        continue
       }
 
       const filePath = await writeMemoryToFile(basePath, memory)
@@ -137,7 +187,66 @@ async function importFromZip(inputPath: string, basePath: string): Promise<Impor
   return result
 }
 
+interface ImportPreparation {
+  skipReason?: string
+  handled?: boolean
+}
+
+async function prepareImportedMemory(
+  basePath: string,
+  memory: Memory,
+  collision: ImportCollisionMode
+): Promise<ImportPreparation> {
+  if (!memory.metadata.id) {
+    memory.metadata.id = await generateUniqueId(basePath)
+  }
+
+  assertMemoryId(memory.metadata.id)
+
+  const existingPath = await findMemoryFile(basePath, memory.metadata.id)
+  if (!existingPath) return {}
+
+  if (collision === 'skip') {
+    return { skipReason: `Skipped memory ${memory.metadata.id}: ID already exists.` }
+  }
+
+  if (collision === 'rename') {
+    memory.metadata.id = await generateUniqueId(basePath)
+    return {}
+  }
+
+  if (collision === 'supersede') {
+    const result = await supersedeMemory(basePath, memory.metadata.id, {
+      type: memory.metadata.type,
+      scope: memory.metadata.scope,
+      status: memory.metadata.status,
+      source: memory.metadata.source || 'import-supersede',
+      tags: memory.metadata.tags,
+      salience: memory.metadata.salience,
+      source_ids: memory.metadata.source_ids,
+      content: memory.content,
+    })
+    if (!result) {
+      return { skipReason: `Skipped memory ${memory.metadata.id}: existing memory not found.` }
+    }
+    return { handled: true }
+  }
+
+  await rm(existingPath, { force: true })
+  return {}
+}
+
+async function generateUniqueId(basePath: string): Promise<string> {
+  let id = generateId()
+  while (await findMemoryFile(basePath, id)) {
+    id = generateId()
+  }
+  return id
+}
+
 async function writeMemoryToFile(basePath: string, memory: Memory): Promise<string> {
+  assertMemoryId(memory.metadata.id)
+
   const subdir = getSubdirForType(memory.metadata.type)
   const dirPath = join(basePath, subdir)
   await mkdir(dirPath, { recursive: true })

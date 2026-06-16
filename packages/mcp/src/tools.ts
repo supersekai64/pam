@@ -61,6 +61,7 @@ export interface MemoryCheckpointInput {
   agent?: string
   model?: string
   session_id?: string
+  source?: string
 }
 
 export interface EditMemoryInput {
@@ -103,6 +104,7 @@ export async function searchMemory(input: SearchMemoryInput, context: McpToolCon
     type: input.type,
     tag: input.tag,
     limit: input.limit ?? 10,
+    natural: true,
   })
   index.close()
 
@@ -168,7 +170,7 @@ export async function memoryCheckpoint(input: MemoryCheckpointInput, context: Mc
   }
 
   const status: MemoryStatus = config.mode === 'auto' ? 'active' : 'proposed'
-  const source = input.agent ? `mcp-checkpoint:${input.agent}` : 'mcp-checkpoint'
+  const source = input.source ?? (input.agent ? `mcp-checkpoint:${input.agent}` : 'mcp-checkpoint')
   const created: Memory[] = []
 
   for (const item of buildCheckpointItems(input)) {

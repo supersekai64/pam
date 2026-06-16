@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import {
@@ -11,6 +11,8 @@ import {
   archiveMemory,
   listMemories,
   indexAllMemories,
+  findMemoryFile,
+  scanMemoryFileIssues,
 } from './storage.js'
 import { MemoryIndex } from './indexer.js'
 import { existsSync } from 'node:fs'
@@ -99,6 +101,27 @@ describe('storage', () => {
       expect(updated!.metadata.updated_at).not.toBe(created.metadata.updated_at)
     })
 
+    it('should move the Markdown file when a memory type changes', async () => {
+      const basePath = await initProjectMemory(tempDir)
+
+      const created = await createMemory(basePath, {
+        type: 'knowledge',
+        scope: 'project',
+        content: 'Move me',
+      })
+      const oldPath = join(basePath, 'knowledge', `${created.metadata.id}.md`)
+
+      const updated = await updateMemory(basePath, created.metadata.id, {
+        type: 'decision',
+      })
+      const newPath = join(basePath, 'decisions', `${created.metadata.id}.md`)
+
+      expect(updated!.metadata.type).toBe('decision')
+      expect(existsSync(oldPath)).toBe(false)
+      expect(existsSync(newPath)).toBe(true)
+      expect(await findMemoryFile(basePath, created.metadata.id)).toBe(newPath)
+    })
+
     it('should delete a memory (logical)', async () => {
       const basePath = await initProjectMemory(tempDir)
 
@@ -149,6 +172,9 @@ describe('storage', () => {
       const deleted = await deleteMemory(basePath, created.metadata.id, { physical: true })
       expect(deleted).toBe(true)
 
+      const backups = await readdir(join(basePath, 'backups'))
+      expect(backups.some((entry) => entry.endsWith(`-${created.metadata.id}.bak`))).toBe(true)
+
       const read = await readMemory(basePath, created.metadata.id)
       expect(read).toBeNull()
 
@@ -157,6 +183,9 @@ describe('storage', () => {
       index.close()
 
       expect(result).toBeNull()
+
+      const memories = await listMemories(basePath)
+      expect(memories).toHaveLength(0)
     })
 
     it('should list all memories', async () => {
@@ -223,6 +252,30 @@ describe('storage', () => {
       index.close()
 
       expect(result).toBeNull()
+    })
+
+    it('should report invalid Markdown memory files', async () => {
+      const basePath = await initProjectMemory(tempDir)
+      await mkdir(join(basePath, 'knowledge'), { recursive: true })
+      await writeFile(
+        join(basePath, 'knowledge', 'unsafe.md'),
+        `---
+id: ../../unsafe
+type: knowledge
+scope: project
+status: active
+tags: []
+source: manual
+---
+Unsafe id
+`,
+        'utf-8'
+      )
+
+      const issues = await scanMemoryFileIssues(basePath)
+
+      expect(issues).toHaveLength(1)
+      expect(issues[0].error).toContain('Invalid memory id')
     })
   })
 })

@@ -52,6 +52,7 @@ describe('integrations', () => {
 
     expect(config.hooks.SessionStart[0].hooks[0].command).toContain('memory hook record')
     expect(config.hooks.Stop[0].hooks[0].command).toContain('session-end')
+    expect(raw).not.toContain('--project')
   })
 
   it('should configure opencode MCP and instructions', async () => {
@@ -105,6 +106,25 @@ describe('integrations', () => {
     expect(agents).toContain('User corrects you')
     expect(agents).toContain('memory_checkpoint')
     expect(agents).toContain('update relevant documentation')
+  })
+
+  it('should generate project-only instructions with executable CLI fallbacks', async () => {
+    await configureProjectIntegrations(tempDir)
+
+    const files = [
+      join(tempDir, 'AGENTS.md'),
+      join(tempDir, 'CLAUDE.md'),
+      join(tempDir, '.github', 'copilot-instructions.md'),
+      join(tempDir, '.cursor', 'rules', 'pamh.mdc'),
+    ]
+
+    for (const file of files) {
+      const raw = await readFile(file, 'utf-8')
+      expect(raw).toContain('memory search')
+      expect(raw).toContain('PAMH is project-only')
+      expect(raw).not.toContain('--project')
+      expect(raw).not.toContain('Use `global`')
+    }
   })
 
   it('should skip invalid existing JSON configs', async () => {

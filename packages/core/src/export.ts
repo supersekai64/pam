@@ -3,6 +3,8 @@ import AdmZip from 'adm-zip'
 import { indexAllMemories, listMemories } from './storage.js'
 import { serializeMarkdown } from './markdown.js'
 import { join } from 'node:path'
+import { assertMemoryId } from './id.js'
+import type { Memory } from './types.js'
 
 export type ExportFormat = 'zip' | 'json' | 'markdown' | 'sqlite'
 
@@ -36,7 +38,7 @@ async function exportToSqlite(basePath: string, outputPath: string): Promise<str
 }
 
 async function exportToJson(basePath: string, outputPath: string): Promise<string> {
-  const memories = await listMemories(basePath)
+  const memories = await getExportableMemories(basePath)
 
   const exportData = {
     version: '1.0.0',
@@ -53,7 +55,7 @@ async function exportToJson(basePath: string, outputPath: string): Promise<strin
 }
 
 async function exportToMarkdown(basePath: string, outputPath: string): Promise<string> {
-  const memories = await listMemories(basePath)
+  const memories = await getExportableMemories(basePath)
 
   let content = `# Memory Export\n\n`
   content += `Exported at: ${new Date().toISOString()}\n`
@@ -79,7 +81,7 @@ async function exportToMarkdown(basePath: string, outputPath: string): Promise<s
 }
 
 async function exportToZip(basePath: string, outputPath: string): Promise<string> {
-  const memories = await listMemories(basePath)
+  const memories = await getExportableMemories(basePath)
 
   const zip = new AdmZip()
 
@@ -97,4 +99,10 @@ async function exportToZip(basePath: string, outputPath: string): Promise<string
 
   zip.writeZip(outputPath)
   return outputPath
+}
+
+async function getExportableMemories(basePath: string): Promise<Memory[]> {
+  const memories = await listMemories(basePath)
+  memories.forEach((memory) => assertMemoryId(memory.metadata.id))
+  return memories
 }

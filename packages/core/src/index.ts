@@ -10,15 +10,26 @@ export {
   readMemory,
   updateMemory,
   deleteMemory,
+  backupMemory,
   archiveMemory,
   listMemories,
   indexAllMemories,
   checkIndexConsistency,
   findMemoryFile,
+  findLatestMemoryBackup,
   type ConsistencyReport,
   type DeleteMemoryOptions,
+  scanMemoryFileIssues,
+  type MemoryFileIssue,
 } from './storage.js'
 export { MemoryIndex, type SearchOptions, type SearchResult, type IndexStats } from './indexer.js'
+export {
+  expandNaturalQuery,
+  matchesNaturalSearch,
+  normalizeSearchText,
+  tokenizeSearchQuery,
+  type NaturalQueryExpansion,
+} from './query.js'
 export { loadMemoryIgnore, getDefaultIgnorePatterns, type MemoryIgnore } from './memoryignore.js'
 export { redactContent, getRedactionPatterns, type RedactionResult } from './redaction.js'
 export { restoreMemory } from './restore.js'
@@ -40,9 +51,16 @@ export {
 } from './import.js'
 export {
   compileContext,
+  composeContextSources,
+  estimateContextTokens,
+  isContextNoiseMemory,
   writeCompiledContext,
   type CompileContextOptions,
   type CompiledContext,
+  type ContextComposition,
+  type ContextExclusion,
+  type ContextMemory,
+  type RankedContextSource,
 } from './context.js'
 export {
   extractConceptCandidates,

@@ -92,6 +92,17 @@ VS Code/Cursor windows, start a new Claude Code/OpenCode session, or
 restart/open a new Codex session so the client reloads project instructions and
 MCP configuration.
 
+Run the readiness checks before trusting the integration:
+
+```bash
+memory doctor integrations
+memory smoke-test agent
+memory review
+```
+
+The smoke test creates a proposed memory. Approve it, then verify retrieval with
+the command printed by the smoke test.
+
 ## Configure Your IDE or AI Agent
 
 PAMH works best when integrated with your AI-powered development tools via MCP (Model Context Protocol).
@@ -115,7 +126,10 @@ See [MCP Configuration](mcp.md) for detailed examples for each tool.
 
 ## Automatic Memory Capture (Default)
 
-By default, PAMH uses **assisted mode**: your AI agent automatically proposes memories when it learns something important, and you review and approve them.
+By default, PAMH uses **assisted mode**: your AI agent proposes memories when it
+uses the PAMH MCP tools or generated hooks, and you review and approve them.
+PAMH stores and serves the memory; it does not silently read every conversation
+unless the client integration sends lifecycle events.
 
 ### Workflow
 
@@ -125,7 +139,7 @@ By default, PAMH uses **assisted mode**: your AI agent automatically proposes me
 
    ```bash
    # List proposed memories
-   memory list --status proposed
+   memory review
 
    # Or open the UI for visual review
    memory ui --open
@@ -159,6 +173,8 @@ memory search "PostgreSQL"
 ```
 
 See [Capture Modes](capture-modes.md) for all available modes (manual, assisted, auto).
+See [Role Examples](examples.md) for setup flows by user profile, and
+[Glossary](glossary.md) for PAMH vocabulary.
 
 ## Manual Memory Capture (Optional)
 
@@ -176,6 +192,7 @@ memory search "database"
 
 # Show memory status
 memory status
+memory status --verbose
 
 # Compile context
 memory context --query "architecture" --output

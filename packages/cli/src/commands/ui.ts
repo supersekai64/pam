@@ -1,12 +1,17 @@
 import { createConnection } from 'node:net'
 import { get, request as httpRequest } from 'node:http'
-import { execFile, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
+import { resolve } from 'node:path'
 import { Command } from 'commander'
 
 interface UiCommandOptions {
   host?: string
   port?: string
   open?: boolean
+}
+
+interface PamhServerProbe {
+  token: string
 }
 
 export function registerUiCommand(program: Command) {
@@ -37,14 +42,16 @@ export function registerUiCommand(program: Command) {
         }
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') {
-          const running = await probeServer(url)
+          const running = await probePamhServer(url, process.cwd())
           if (running) {
             console.log(`Stopping existing PAMH UI instance on port ${port}...`)
-            await shutdownServer(url)
+            await shutdownServer(url, running.token)
             const freed = await waitForPortFree(host, port, 3000)
             if (!freed) {
-              await killProcessOnPort(port)
-              await waitForPortFree(host, port, 4000)
+              console.error(
+                `Existing PAMH UI on port ${port} did not stop. Stop it manually or choose --port.`
+              )
+              process.exit(1)
             }
 
             const app = await startUiServer(host, port)
@@ -89,25 +96,68 @@ function isPamhPackageMismatch(error: unknown): boolean {
   )
 }
 
-function probeServer(url: string): Promise<boolean> {
+async function probePamhServer(
+  url: string,
+  expectedProjectPath: string
+): Promise<PamhServerProbe | null> {
+  const health = await getJson<{
+    ok?: boolean
+    name?: string
+    projectPath?: string
+  }>(`${url}/api/health`)
+
+  if (
+    !health ||
+    health.ok !== true ||
+    health.name !== 'pamh' ||
+    !health.projectPath ||
+    resolve(health.projectPath) !== resolve(expectedProjectPath)
+  ) {
+    return null
+  }
+
+  const session = await getJson<{ token?: string }>(`${url}/api/session`)
+  if (!session?.token) return null
+
+  return { token: session.token }
+}
+
+function getJson<T>(url: string): Promise<T | null> {
   return new Promise((resolve) => {
     const req = get(url, (res) => {
-      res.resume()
-      resolve(res.statusCode !== undefined)
+      const chunks: Buffer[] = []
+      res.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)))
+      res.on('end', () => {
+        if (res.statusCode !== 200) {
+          resolve(null)
+          return
+        }
+        try {
+          resolve(JSON.parse(Buffer.concat(chunks).toString('utf-8')) as T)
+        } catch {
+          resolve(null)
+        }
+      })
     })
-    req.on('error', () => resolve(false))
+    req.on('error', () => resolve(null))
     req.setTimeout(2000, () => {
       req.destroy()
-      resolve(false)
+      resolve(null)
     })
   })
 }
 
-function shutdownServer(url: string): Promise<void> {
+function shutdownServer(url: string, token: string): Promise<void> {
   return new Promise((resolve) => {
     const parsed = new URL(`${url}/api/shutdown`)
     const req = httpRequest(
-      { host: parsed.hostname, port: parsed.port, path: parsed.pathname, method: 'POST' },
+      {
+        host: parsed.hostname,
+        port: parsed.port,
+        path: parsed.pathname,
+        method: 'POST',
+        headers: { 'x-pamh-session': token },
+      },
       (res) => {
         res.resume()
         resolve()
@@ -138,26 +188,6 @@ function waitForPortFree(host: string, port: number, timeoutMs = 5000): Promise<
       })
     }
     setTimeout(check, 300)
-  })
-}
-
-function killProcessOnPort(port: number): Promise<void> {
-  return new Promise((resolve) => {
-    if (process.platform === 'win32') {
-      execFile(
-        'powershell',
-        [
-          '-NoProfile',
-          '-Command',
-          `$p = (Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue).OwningProcess; if ($p) { Stop-Process -Id $p -Force }`,
-        ],
-        () => resolve()
-      )
-    } else {
-      execFile('sh', ['-c', `lsof -ti tcp:${port} | xargs kill -9 2>/dev/null || true`], () =>
-        resolve()
-      )
-    }
   })
 }
 

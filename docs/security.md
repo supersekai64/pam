@@ -28,6 +28,10 @@ memory redact <id>
 
 Redaction is intentionally conservative. Users should still review memories before exporting, sharing, or committing them.
 
+Lifecycle hook observations are redacted before they are written to
+`.ai-memory/observations/*.jsonl`. Durable session memories store event counts
+and summaries, not raw prompt transcripts.
+
 ## `.memoryignore`
 
 `.memoryignore` works like `.gitignore` for memory ingestion and memory-related file handling.
@@ -59,7 +63,18 @@ Use:
 memory restore <id>
 ```
 
-Physical deletion is intentionally not part of the MVP default path.
+Physical deletion requires an explicit destructive path. In the CLI, use
+`memory delete <id> --physical --yes`; in the UI, type the memory ID when
+prompted. Prefer logical deletion plus `memory restore <id>` unless you need to
+remove the file from disk.
+
+Before physical deletion, PAMH writes a local `.ai-memory/backups/*.bak` copy.
+`memory restore <id>` can restore from the latest matching backup if the
+original Markdown file has already been removed.
+
+The local UI/API server uses a per-instance session token for POST/PATCH/DELETE
+requests and rejects cross-origin mutations. It is intended for localhost use,
+not for exposure on a network interface.
 
 ## MCP
 

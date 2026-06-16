@@ -25,6 +25,8 @@ import { registerSemanticCommand } from './commands/semantic.js'
 import { registerServerCommand } from './commands/server.js'
 import { registerUiCommand } from './commands/ui.js'
 import { registerStatusCommand } from './commands/status.js'
+import { registerReviewCommand } from './commands/review.js'
+import { registerSmokeTestCommand } from './commands/smoke-test.js'
 import { registerHandoffCommand } from './commands/handoff.js'
 import { registerDecayCommand } from './commands/decay.js'
 import { registerSupersedeCommand } from './commands/supersede.js'
@@ -62,6 +64,8 @@ registerSemanticCommand(program)
 registerServerCommand(program)
 registerUiCommand(program)
 registerStatusCommand(program)
+registerReviewCommand(program)
+registerSmokeTestCommand(program)
 registerHandoffCommand(program)
 registerDecayCommand(program)
 registerSupersedeCommand(program)
