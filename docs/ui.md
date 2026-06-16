@@ -13,15 +13,18 @@ By default, the server binds to `127.0.0.1:3939`.
 ## Capabilities
 
 - View the current project memory store
+- Guide an empty store through the first capture path: integration doctor,
+  smoke-test proposal, review queue, and context preview
 - Browse Evidence as kanban-style type columns
 - Search memories and filter by status
 - Open memory details in a modal
 - Create memories
-- Edit content, type, and tags
+- Edit display title, content, type, and tags
 - Archive, restore, logically delete, or physically delete memories
 - View local index statistics
 - Preview the composed LLM context with selected sources and exclusion reasons
-- Review assisted maintenance recommendations
+- Review action-first assisted maintenance recommendations with decision controls,
+  safety copy, and linked evidence
 - Inspect the Knowledge Graph in a separate tab
 - Inspect evidence IDs for recommendations, graph entities, and graph relations
 
@@ -29,6 +32,11 @@ The LLM context concept map and the Knowledge Graph are separate views. The
 concept map shows recurring signals and co-occurrence from the current composed
 LLM context. The Knowledge Graph shows explicit entities and typed,
 evidence-backed relations.
+
+Memory titles are optional metadata. If a client AI agent has generated a short
+title through MCP, CLI, or the local API, the Evidence and Knowledge Graph views
+use it as the primary label; otherwise they fall back to a compact excerpt of
+the memory content.
 
 The LLM context preview is not a raw recent-memory list. The API composes it
 from active project memories by prioritizing durable rules, decisions,
@@ -56,6 +64,19 @@ Markdown + SQLite
 ```
 
 The UI is static and does not own persistence logic. All writes go through the local API, and the API delegates to `pamh-core`.
+
+## Browser Smoke Test
+
+The repository includes a Playwright smoke suite for the local UI:
+
+```bash
+pnpm exec playwright install chromium
+pnpm test:e2e
+```
+
+It builds the packages, starts the real local API/UI against a temporary
+`.ai-memory` store, and verifies the empty-store onboarding, memory creation,
+approval, context preview, Knowledge Graph, and Governance views.
 
 ## Future Clients
 

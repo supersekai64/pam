@@ -12,6 +12,7 @@ export function parseMarkdown(raw: string): Memory {
 
   const metadata: MemoryMetadata = {
     id: String(data.id ?? ''),
+    title: parseOptionalString(data.title),
     type: normalizeStoredMemoryType(data.type ?? 'knowledge'),
     scope: normalizeStoredMemoryScope(data.scope),
     status: assertMemoryStatus(data.status ?? 'active'),
@@ -41,6 +42,7 @@ export function parseMarkdown(raw: string): Memory {
 export function serializeMarkdown(memory: Memory): string {
   const frontmatter: Record<string, unknown> = {
     id: memory.metadata.id,
+    title: memory.metadata.title,
     type: memory.metadata.type,
     scope: memory.metadata.scope,
     status: memory.metadata.status,
@@ -63,6 +65,12 @@ export function serializeMarkdown(memory: Memory): string {
   }
 
   return matter.stringify(memory.content, frontmatter)
+}
+
+function parseOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed ? trimmed : undefined
 }
 
 function parseOptionalNumber(

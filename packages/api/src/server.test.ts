@@ -282,17 +282,19 @@ describe('local API concepts', () => {
         error: 'Field "tags" must be an array of strings when provided.',
       })
 
-      const valid = await postJson<{ memory: { metadata: { id: string } } }>(
+      const valid = await postJson<{ memory: { metadata: { id: string; title?: string } } }>(
         `${baseUrl}/api/memories?store=project`,
         token,
         {
           type: 'knowledge',
           scope: 'project',
+          title: 'API-created memory',
           content: 'Valid API memory',
           tags: ['api'],
         }
       )
       expect(valid.memory.metadata.id).toMatch(/^mem_/)
+      expect(valid.memory.metadata.title).toBe('API-created memory')
     } finally {
       await close()
     }
@@ -315,6 +317,17 @@ describe('local API concepts', () => {
       expect(response.status).toBe(400)
       await expect(response.json()).resolves.toMatchObject({
         error: 'Field "status" must be a valid memory status when provided.',
+      })
+
+      const updated = await fetch(`${baseUrl}/api/memories/${memory.metadata.id}?store=project`, {
+        method: 'PATCH',
+        headers: { 'x-pamh-session': token },
+        body: JSON.stringify({ title: 'API-updated title' }),
+      })
+
+      expect(updated.status).toBe(200)
+      await expect(updated.json()).resolves.toMatchObject({
+        memory: { metadata: { title: 'API-updated title' } },
       })
     } finally {
       await close()

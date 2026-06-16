@@ -80,6 +80,13 @@ export {
 } from './embedding.js'
 export { SemanticIndex, type SemanticSearchResult } from './semantic.js'
 export {
+  createIntelligentMemory,
+  splitMemorySignals,
+  type IntelligentCaptureAction,
+  type IntelligentCaptureOptions,
+  type IntelligentCaptureResult,
+} from './capture.js'
+export {
   configureCodexGlobalIntegration,
   configureProjectIntegrations,
   type ConfigureProjectIntegrationsResult,

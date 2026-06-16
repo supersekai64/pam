@@ -1,11 +1,5 @@
 import type { ReactNode } from 'react'
-import type {
-  ApiConceptGraph,
-  ApiConceptNode,
-  ConceptDepth,
-  ContextPreview,
-  MapLayout,
-} from '@/types'
+import type { ApiConceptGraph, ApiConceptNode, ConceptDepth, MapLayout } from '@/types'
 
 interface ConceptsPageComponents {
   NeuralMapPanel: (props: {
@@ -27,10 +21,6 @@ interface ConceptsPageComponents {
     onConsolidate: (concept: string) => void
     onIgnore: (concept: string) => void
   }) => ReactNode
-  ContextMiniPanel: (props: {
-    contextPreview: ContextPreview | null
-    onOpen: () => void
-  }) => ReactNode
 }
 
 export function ConceptsPage({
@@ -38,14 +28,12 @@ export function ConceptsPage({
   components,
   conceptDepth,
   conceptGraph,
-  contextPreview,
   focusedConcept,
   mapLayout,
   onClearFocus,
   onConceptDepthChange,
   onConceptSelect,
   onConsolidate,
-  onContextOpen,
   onIgnore,
   onMapLayoutChange,
 }: {
@@ -53,21 +41,19 @@ export function ConceptsPage({
   components: ConceptsPageComponents
   conceptDepth: ConceptDepth
   conceptGraph: ApiConceptGraph | null
-  contextPreview: ContextPreview | null
   focusedConcept: string
   mapLayout: MapLayout
   onClearFocus: () => void
   onConceptDepthChange: (depth: ConceptDepth) => void
   onConceptSelect: (concept: string) => void
   onConsolidate: (concept: string) => void
-  onContextOpen: () => void
   onIgnore: (concept: string) => void
   onMapLayoutChange: (layout: MapLayout) => void
 }) {
-  const { ConceptInspector, ContextMiniPanel, NeuralMapPanel } = components
+  const { ConceptInspector, NeuralMapPanel } = components
 
   return (
-    <div className="grid gap-4">
+    <div className="grid h-full min-h-0 grid-rows-[minmax(20rem,1fr)_minmax(16rem,auto)] gap-4 max-xl:h-auto max-xl:grid-rows-none">
       <NeuralMapPanel
         conceptDepth={conceptDepth}
         conceptGraph={conceptGraph}
@@ -79,17 +65,14 @@ export function ConceptsPage({
         onIgnore={onIgnore}
         onMapLayoutChange={onMapLayoutChange}
       />
-      <section className="grid grid-cols-[minmax(20rem,0.78fr)_minmax(24rem,1fr)] gap-4 max-xl:grid-cols-1">
-        <ConceptInspector
-          concept={activeConcept}
-          conceptGraph={conceptGraph}
-          focusedConcept={focusedConcept}
-          onConceptSelect={onConceptSelect}
-          onConsolidate={onConsolidate}
-          onIgnore={onIgnore}
-        />
-        <ContextMiniPanel contextPreview={contextPreview} onOpen={onContextOpen} />
-      </section>
+      <ConceptInspector
+        concept={activeConcept}
+        conceptGraph={conceptGraph}
+        focusedConcept={focusedConcept}
+        onConceptSelect={onConceptSelect}
+        onConsolidate={onConsolidate}
+        onIgnore={onIgnore}
+      />
     </div>
   )
 }

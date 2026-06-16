@@ -71,13 +71,14 @@ memory add -t <type> -c <content> [options]
 
 - `-t, --type <type>` - Memory type (required): decision, knowledge, mistake, rule, preference, session, task
 - `-c, --content <content>` - Memory content (required)
+- `--title <title>` - Short display title, useful when an AI client can summarize the memory
 - `--tags <tags>` - Comma-separated tags
 - `--salience <score>` - Importance score from `0` to `1` (default: `0.5`)
 
 **Example:**
 
 ```bash
-memory add -t decision -c "Use TypeScript for all packages" --tags "tech,typescript"
+memory add -t decision --title "TypeScript package policy" -c "Use TypeScript for all packages" --tags "tech,typescript"
 ```
 
 ### Checkpoint
@@ -154,13 +155,14 @@ memory edit <id> [options]
 **Options:**
 
 - `-c, --content <content>` - New content
+- `--title <title>` - New short display title; pass an empty string to clear it
 - `-t, --type <type>` - New type
 - `--tags <tags>` - New comma-separated tags
 
 **Example:**
 
 ```bash
-memory edit mem_abc123 -c "Updated content" --tags "updated"
+memory edit mem_abc123 --title "Updated API decision" -c "Updated content" --tags "updated"
 ```
 
 ### Delete Memory
@@ -293,6 +295,9 @@ memory smoke-test agent [options]
 Create a proposed test memory and verify that the local store and review queue
 are reachable. Approve the printed memory ID, then run the printed search or
 context command to confirm recall.
+
+This command is the quickest proof that PAMH is not only installed but also
+capturing into the project store that the CLI, MCP server, API, and UI share.
 
 ### Redact Memory
 

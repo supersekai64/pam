@@ -1,42 +1,24 @@
 import './styles.css'
 
-import {
-  Archive,
-  Ban,
-  Check,
-  Circle,
-  FileText,
-  ListFilter,
-  Merge,
-  Plus,
-  RotateCcw,
-  Save,
-  Sparkles,
-  Trash2,
-  X,
-  type LucideIcon,
-} from 'lucide-react'
+import { Ban, Merge, X } from 'lucide-react'
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
 import { ConsoleHeader } from '@/components/console-header'
+import { GovernancePanel } from '@/components/governance-panel'
+import { KnowledgeGraphPanel } from '@/components/knowledge-graph-panel'
+import { CreateForm, Editor, MemoryModal } from '@/components/memory-modal'
 import { Sidebar } from '@/components/sidebar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { Hint, MetaTile, Panel } from '@/components/workbench-primitives'
 import { api } from '@/lib/api'
+import { countLabel, formatDate, getMetadata, nounLabel, toMemory } from '@/lib/memory-view'
+import { conceptHints } from '@/lib/ui-copy'
 import { cn } from '@/lib/utils'
 import { ConceptsPage as ConceptsRoutePage } from '@/pages/concepts-page'
 import { ContextPage } from '@/pages/context-page'
@@ -53,13 +35,10 @@ import type {
   GraphDatum,
   GraphEdge,
   KnowledgeGraphResponse,
-  KnowledgeRelation,
   MapLayout,
   MemoriesResponse,
   Memory,
   MemoryAction,
-  MemoryMetadata,
-  MemoryRecommendation,
   RecommendationsResponse,
   SearchResult,
   StatsResponse,
@@ -68,83 +47,6 @@ import type {
 } from '@/types'
 
 const PROJECT_STORE: Store = 'project'
-
-const memoryTypes = [
-  'decision',
-  'knowledge',
-  'mistake',
-  'rule',
-  'preference',
-  'session',
-  'task',
-  'client',
-  'pattern',
-]
-
-const typeHints: Record<string, string> = {
-  decision: 'A technical choice made for the project (library, pattern, schema, protocol).',
-  knowledge: 'A reusable fact, constraint or gotcha about the codebase.',
-  mistake: 'A lesson learned from an error or regression — used to avoid repeating it.',
-  rule: 'A durable workflow requirement ("always …", "never …").',
-  preference: 'A stylistic, UX, naming or architectural choice that should apply broadly.',
-  session: 'A short summary of completed work.',
-  task: 'Follow-up work identified but not done yet.',
-  client: 'Memory scoped to a specific client / customer.',
-  pattern: 'A recurring pattern observed in code or workflow.',
-}
-
-const conceptHints = {
-  llmCandidates: 'Active memories that would be included in the LLM context window right now.',
-  strongConcepts:
-    'Tags and keywords that recur across the current LLM context. They are the backbone of the concepts map.',
-  evidenceSet:
-    'Memories matching the current search query and status filter — what you would inspect or edit.',
-  excludedNoise:
-    'Memories marked as Noise. Hidden from the LLM and the map, but still stored for audit.',
-  focusedConcept:
-    'A concept you clicked in the map. The Evidence and Context views become filtered to it.',
-  consolidate:
-    'Promote this concept into a distilled "knowledge" memory that summarizes its evidence.',
-  markNoise:
-    'Tell PAMH this concept (or memory) is irrelevant. It will be hidden from future LLM context.',
-  contextPreview:
-    'The exact block of text that would be sent to the LLM as project memory right now.',
-  tokenEstimate: 'Approximate token count of the current context block (rough heuristic).',
-  approve: 'Promote this proposed memory to Active so the LLM can use it.',
-  reject: 'Discard this proposed memory. It will be soft-deleted.',
-  archive: 'Remove from the LLM context but keep for history. Restorable.',
-  restore: 'Bring this memory back to Active so the LLM can use it again.',
-  softDelete: 'Mark as deleted. Hidden everywhere but still restorable.',
-  physicalDelete: 'Permanently remove the file from disk. This cannot be undone.',
-  save: 'Save your edits to the memory content, type and tags.',
-  distillation:
-    'Group of related memories that could be merged into a single, denser "knowledge" memory.',
-  recommendation:
-    'Assisted suggestion produced by PAMH based on your current store (merges, deletions, promotions).',
-  showNoise: 'Toggle visibility of memories marked as noise across the whole console.',
-  knowledgeGraph:
-    'Typed relations (decision → component, person → owns → module, etc.) extracted across memories.',
-  copyContext: 'Copy the LLM context block to the clipboard.',
-}
-
-function Hint({
-  children,
-  label,
-  side = 'top',
-}: {
-  children: ReactNode
-  label: ReactNode
-  side?: 'top' | 'right' | 'bottom' | 'left'
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent className="max-w-xs text-left leading-5" side={side}>
-        {label}
-      </TooltipContent>
-    </Tooltip>
-  )
-}
 
 function App() {
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>(() => getInitialWorkspaceView())
@@ -164,10 +66,14 @@ function App() {
   const [statsResponse, setStatsResponse] = useState<StatsResponse | null>(null)
   const [recommendations, setRecommendations] = useState<RecommendationsResponse | null>(null)
   const [knowledgeGraph, setKnowledgeGraph] = useState<KnowledgeGraphResponse | null>(null)
+  const [isIntelligenceLoading, setIsIntelligenceLoading] = useState(false)
+  const [intelligenceAttempted, setIntelligenceAttempted] = useState(false)
+  const [intelligenceLoaded, setIntelligenceLoaded] = useState(false)
   const [memoryDirectory, setMemoryDirectory] = useState<Map<string, Memory | SearchResult>>(
     () => new Map()
   )
   const [message, setMessage] = useState('')
+  const intelligenceRequestRef = useRef<Promise<void> | null>(null)
 
   const conceptLimit = conceptDepth === 'top' ? 20 : 100
   const activeConcept = getActiveConcept(conceptGraph, focusedConcept)
@@ -221,6 +127,8 @@ function App() {
   }, [focusedConcept, includeNoise, query])
 
   const loadIntelligence = useCallback(async () => {
+    if (intelligenceRequestRef.current) return intelligenceRequestRef.current
+
     const params = new URLSearchParams({ store: PROJECT_STORE })
     const directoryParams = new URLSearchParams({
       store: PROJECT_STORE,
@@ -228,27 +136,64 @@ function App() {
       status: 'all',
       limit: '2000',
     })
-    const [recommendationResponse, graphResponse, directoryResponse] = await Promise.all([
-      api<RecommendationsResponse>(`/api/recommendations?${params.toString()}`),
-      api<KnowledgeGraphResponse>(`/api/knowledge-graph?${params.toString()}`),
-      api<MemoriesResponse>(`/api/memories?${directoryParams.toString()}`),
-    ])
-    setRecommendations(recommendationResponse)
-    setKnowledgeGraph(graphResponse)
-    setMemoryDirectory(
-      new Map(directoryResponse.memories.map((memory) => [getMetadata(memory).id, memory]))
-    )
+
+    setIsIntelligenceLoading(true)
+
+    const recommendationRequest = api<RecommendationsResponse>(
+      `/api/recommendations?${params.toString()}`
+    ).then((recommendationResponse) => {
+      setRecommendations(recommendationResponse)
+    })
+    const graphRequest = api<KnowledgeGraphResponse>(
+      `/api/knowledge-graph?${params.toString()}`
+    ).then((graphResponse) => {
+      setKnowledgeGraph(graphResponse)
+    })
+    const directoryRequest = api<MemoriesResponse>(
+      `/api/memories?${directoryParams.toString()}`
+    ).then((directoryResponse) => {
+      setMemoryDirectory(
+        new Map(directoryResponse.memories.map((memory) => [getMetadata(memory).id, memory]))
+      )
+    })
+
+    const request = Promise.allSettled([recommendationRequest, graphRequest, directoryRequest])
+      .then((results) => {
+        if (results.some((result) => result.status === 'rejected')) return
+
+        setIntelligenceLoaded(true)
+      })
+      .finally(() => {
+        setIntelligenceAttempted(true)
+        intelligenceRequestRef.current = null
+        setIsIntelligenceLoading(false)
+      })
+
+    intelligenceRequestRef.current = request
+    return request
   }, [])
 
   const refresh = useCallback(async () => {
-    await Promise.all([
+    const baseRefresh = Promise.all([
       loadStats(),
       loadMemories(),
       loadConceptGraph(),
       loadContextPreview(),
-      loadIntelligence(),
     ])
-  }, [loadConceptGraph, loadContextPreview, loadIntelligence, loadMemories, loadStats])
+    if (workspaceView === 'knowledge' || workspaceView === 'governance') {
+      await Promise.all([baseRefresh, loadIntelligence()])
+      return
+    }
+
+    await baseRefresh
+  }, [
+    loadConceptGraph,
+    loadContextPreview,
+    loadIntelligence,
+    loadMemories,
+    loadStats,
+    workspaceView,
+  ])
 
   const selectMemory = useCallback(async (id: string) => {
     setSelectedId(id)
@@ -266,6 +211,16 @@ function App() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  useEffect(() => {
+    if (intelligenceLoaded || intelligenceAttempted || isIntelligenceLoading) return
+
+    const timeout = window.setTimeout(() => {
+      void loadIntelligence().catch(() => undefined)
+    }, 900)
+
+    return () => window.clearTimeout(timeout)
+  }, [intelligenceAttempted, intelligenceLoaded, isIntelligenceLoading, loadIntelligence])
 
   useEffect(() => {
     if (!selectedId) return
@@ -349,6 +304,7 @@ function App() {
       body: JSON.stringify({
         type: data.get('type'),
         scope: PROJECT_STORE,
+        title: String(data.get('title') ?? '').trim(),
         tags: parseTags(String(data.get('tags') ?? '')),
         content,
         source: 'ui',
@@ -362,45 +318,62 @@ function App() {
     await refresh()
   }
 
-  async function updateFromForm(event: FormEvent<HTMLFormElement>) {
+  async function updateMemoryFromForm(
+    memoryLike: Memory | SearchResult,
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault()
-    if (!selected) return
 
+    const memory = toMemory(memoryLike)
     const data = new FormData(event.currentTarget)
     const response = await api<{ memory: Memory }>(
-      `/api/memories/${selected.metadata.id}?store=${PROJECT_STORE}`,
+      `/api/memories/${memory.metadata.id}?store=${PROJECT_STORE}`,
       {
         method: 'PATCH',
         body: JSON.stringify({
           type: data.get('type'),
           scope: PROJECT_STORE,
+          title: data.get('title') === null ? undefined : String(data.get('title') ?? '').trim(),
           tags: parseTags(String(data.get('tags') ?? '')),
           content: String(data.get('content') ?? ''),
         }),
       }
     )
-    setSelected(response.memory)
+    if (selected?.metadata.id === memory.metadata.id) {
+      setSelected(response.memory)
+    }
     setMessage(`Updated ${response.memory.metadata.id}`)
     await refresh()
   }
 
-  async function runAction(action: MemoryAction) {
-    if (!selected) return
+  async function updateFromForm(event: FormEvent<HTMLFormElement>) {
+    if (!selected) {
+      event.preventDefault()
+      return
+    }
 
-    const id = selected.metadata.id
+    await updateMemoryFromForm(selected, event)
+  }
+
+  async function runMemoryAction(memoryLike: Memory | SearchResult, action: MemoryAction) {
+    const memory = toMemory(memoryLike)
+    const id = memory.metadata.id
+
     if (action === 'mark-noise') {
-      const tags = Array.from(new Set([...selected.metadata.tags, 'pamh-noise']))
+      const tags = Array.from(new Set([...memory.metadata.tags, 'pamh-noise']))
       const response = await api<{ memory: Memory }>(`/api/memories/${id}?store=${PROJECT_STORE}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          type: selected.metadata.type,
+          type: memory.metadata.type,
           scope: PROJECT_STORE,
           status: 'noise',
           tags,
-          content: selected.content,
+          content: memory.content,
         }),
       })
-      setSelected(response.memory)
+      if (selected?.metadata.id === id) {
+        setSelected(response.memory)
+      }
       setMessage(`Marked as noise ${id}`)
       await refresh()
       return
@@ -422,8 +395,10 @@ function App() {
         }
       )
       setMessage(action === 'physical-delete' ? `Physically deleted ${id}` : `Deleted ${id}`)
-      setSelected(null)
-      setSelectedId(null)
+      if (selected?.metadata.id === id) {
+        setSelected(null)
+        setSelectedId(null)
+      }
     } else {
       const response = await api<{ memory?: Memory }>(
         `/api/memories/${id}/${action}?store=${PROJECT_STORE}`,
@@ -431,17 +406,23 @@ function App() {
           method: 'POST',
         }
       )
-      setMessage(`${capitalize(action)}d ${id}`)
-      if (response.memory) {
+      setMessage(`${pastTenseAction(action)} ${id}`)
+      if (response.memory && selected?.metadata.id === id) {
         setSelected(response.memory)
       }
-      if (action === 'approve' || action === 'reject') {
+      if ((action === 'approve' || action === 'reject') && selected?.metadata.id === id) {
         setSelected(null)
         setSelectedId(null)
       }
     }
 
     await refresh()
+  }
+
+  async function runAction(action: MemoryAction) {
+    if (!selected) return
+
+    await runMemoryAction(selected, action)
   }
 
   async function ignoreConcept(concept: string) {
@@ -499,7 +480,7 @@ function App() {
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background text-foreground">
-        <div className="grid min-h-screen w-full grid-cols-[16rem_minmax(0,1fr)] gap-3 p-3 max-lg:grid-cols-1">
+        <div className="grid min-h-screen w-full grid-cols-[16rem_minmax(0,1fr)] gap-3 p-3 lg:h-screen max-lg:grid-cols-1">
           <Sidebar
             selectedStatus={status}
             stats={statsResponse?.stats ?? null}
@@ -508,7 +489,7 @@ function App() {
             onViewChange={changeWorkspaceView}
           />
 
-          <main className="min-w-0 rounded-md bg-card p-4 shadow-sm">
+          <main className="flex min-h-0 min-w-0 flex-col rounded-md bg-card p-4 shadow-sm">
             <ConsoleHeader
               onCreateMemory={() => {
                 setSelected(null)
@@ -530,44 +511,53 @@ function App() {
               onIgnore={ignoreConcept}
             />
 
-            <PageRouter
-              activeConcept={activeConcept}
-              conceptDepth={conceptDepth}
-              conceptGraph={conceptGraph}
-              contextPreview={contextPreview}
-              directory={memoryDirectory}
-              focusedConcept={focusedConcept}
-              includeNoise={includeNoise}
-              knowledgeGraph={knowledgeGraph}
-              mapLayout={mapLayout}
-              memories={memories}
-              recommendations={recommendations}
-              selectedId={selectedId}
-              statsResponse={statsResponse}
-              status={status}
-              totalMatching={memoryTotal}
-              view={workspaceView}
-              query={focusedConcept || query}
-              onClearFocus={clearFocus}
-              onConceptDepthChange={setConceptDepth}
-              onConceptSelect={focusConcept}
-              onEvidenceOpen={(id) => {
-                void selectMemory(id)
-              }}
-              onGoToPage={changeWorkspaceView}
-              onIgnoreConcept={ignoreConcept}
-              onIncludeNoiseChange={setIncludeNoise}
-              onMapLayoutChange={setMapLayout}
-              onPreferContradiction={preferContradiction}
-              onQueryChange={(value) => {
-                setFocusedConcept('')
-                setQuery(value)
-              }}
-              onRecommendationAction={handleRecommendation}
-              onSelectMemory={selectMemory}
-              onStatusChange={setStatus}
-              onConsolidateConcept={consolidateConcept}
-            />
+            <div className="min-h-0 flex-1">
+              <PageRouter
+                activeConcept={activeConcept}
+                conceptDepth={conceptDepth}
+                conceptGraph={conceptGraph}
+                contextPreview={contextPreview}
+                directory={memoryDirectory}
+                focusedConcept={focusedConcept}
+                includeNoise={includeNoise}
+                knowledgeGraph={knowledgeGraph}
+                intelligenceLoading={!intelligenceAttempted || isIntelligenceLoading}
+                mapLayout={mapLayout}
+                memories={memories}
+                recommendations={recommendations}
+                selectedId={selectedId}
+                statsResponse={statsResponse}
+                status={status}
+                totalMatching={memoryTotal}
+                view={workspaceView}
+                query={focusedConcept || query}
+                onClearFocus={clearFocus}
+                onConceptDepthChange={setConceptDepth}
+                onConceptSelect={focusConcept}
+                onEvidenceOpen={(id) => {
+                  void selectMemory(id)
+                }}
+                onEvidenceAction={(memory, action) => {
+                  void runMemoryAction(memory, action)
+                }}
+                onEvidenceUpdate={(memory, event) => {
+                  void updateMemoryFromForm(memory, event)
+                }}
+                onGoToPage={changeWorkspaceView}
+                onIgnoreConcept={ignoreConcept}
+                onIncludeNoiseChange={setIncludeNoise}
+                onMapLayoutChange={setMapLayout}
+                onPreferContradiction={preferContradiction}
+                onQueryChange={(value) => {
+                  setFocusedConcept('')
+                  setQuery(value)
+                }}
+                onRecommendationAction={handleRecommendation}
+                onSelectMemory={selectMemory}
+                onStatusChange={setStatus}
+                onConsolidateConcept={consolidateConcept}
+              />
+            </div>
 
             <MemoryModal
               eyebrow={selected ? selected.metadata.id : isCreating ? 'Create' : 'Evidence'}
@@ -607,14 +597,17 @@ function PageRouter({
   directory,
   focusedConcept,
   includeNoise,
+  intelligenceLoading,
   knowledgeGraph,
   mapLayout,
   memories,
   onClearFocus,
   onConceptDepthChange,
+  onEvidenceAction,
   onConceptSelect,
   onConsolidateConcept,
   onEvidenceOpen,
+  onEvidenceUpdate,
   onGoToPage,
   onIgnoreConcept,
   onIncludeNoiseChange,
@@ -639,14 +632,17 @@ function PageRouter({
   directory: Map<string, Memory | SearchResult>
   focusedConcept: string
   includeNoise: boolean
+  intelligenceLoading: boolean
   knowledgeGraph: KnowledgeGraphResponse | null
   mapLayout: MapLayout
   memories: Array<Memory | SearchResult>
   onClearFocus: () => void
   onConceptDepthChange: (depth: ConceptDepth) => void
+  onEvidenceAction: (memory: Memory | SearchResult, action: MemoryAction) => void
   onConceptSelect: (concept: string) => void
   onConsolidateConcept: (concept: string) => void
   onEvidenceOpen: (id: string) => void
+  onEvidenceUpdate: (memory: Memory | SearchResult, event: FormEvent<HTMLFormElement>) => void
   onGoToPage: (view: WorkspaceView) => void
   onIgnoreConcept: (concept: string) => void
   onIncludeNoiseChange: (includeNoise: boolean) => void
@@ -668,6 +664,7 @@ function PageRouter({
     return (
       <DashboardPage
         conceptGraph={conceptGraph}
+        contextPreview={contextPreview}
         memoryTotal={totalMatching}
         onContextOpen={() => onGoToPage('context')}
         onEvidenceOpen={() => onGoToPage('evidence')}
@@ -682,19 +679,16 @@ function PageRouter({
         activeConcept={activeConcept}
         components={{
           ConceptInspector,
-          ContextMiniPanel,
           NeuralMapPanel,
         }}
         conceptDepth={conceptDepth}
         conceptGraph={conceptGraph}
-        contextPreview={contextPreview}
         focusedConcept={focusedConcept}
         mapLayout={mapLayout}
         onClearFocus={onClearFocus}
         onConceptDepthChange={onConceptDepthChange}
         onConceptSelect={onConceptSelect}
         onConsolidate={onConsolidateConcept}
-        onContextOpen={() => onGoToPage('context')}
         onIgnore={onIgnoreConcept}
         onMapLayoutChange={onMapLayoutChange}
       />
@@ -729,7 +723,9 @@ function PageRouter({
         KnowledgeGraphPanel={KnowledgeGraphPanel}
         directory={directory}
         graph={knowledgeGraph}
-        onEvidence={onEvidenceOpen}
+        loading={intelligenceLoading}
+        onEvidenceAction={onEvidenceAction}
+        onEvidenceUpdate={onEvidenceUpdate}
       />
     )
   }
@@ -740,6 +736,7 @@ function PageRouter({
       conceptGraph={conceptGraph}
       directory={directory}
       includeNoise={includeNoise}
+      loading={intelligenceLoading}
       onEvidenceSelect={onEvidenceOpen}
       onIncludeNoiseChange={onIncludeNoiseChange}
       onPreferContradiction={onPreferContradiction}
@@ -833,8 +830,8 @@ function NeuralMapPanel({
   onMapLayoutChange: (layout: MapLayout) => void
 }) {
   return (
-    <section className="overflow-hidden rounded-md border border-border bg-card">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-card max-xl:min-h-[32rem]">
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div>
           <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
             LLM context map
@@ -882,7 +879,7 @@ function NeuralMapPanel({
           ) : null}
         </div>
       </div>
-      <div className="flex flex-wrap gap-4 border-b border-border px-4 py-2 text-sm text-muted-foreground">
+      <div className="flex shrink-0 flex-wrap gap-4 border-b border-border px-4 py-2 text-sm text-muted-foreground">
         <LegendDot className="bg-primary" label="primary concept" />
         <LegendDot className="bg-primary" label="tag signal" />
         <LegendDot className="bg-secondary" label="keyword signal" />
@@ -943,1139 +940,99 @@ function ConceptInspector({
 }) {
   if (!concept) {
     return (
-      <Panel title="Context concepts" eyebrow="LLM signal">
-        <div className="grid gap-2">
-          {(conceptGraph?.concepts ?? []).slice(0, 12).map((item) => (
-            <button
-              key={item.id}
-              className="flex items-center justify-between gap-3 rounded-sm border border-border bg-muted/35 px-3 py-2 text-left transition hover:border-primary/35 hover:bg-muted/60"
-              type="button"
-              onClick={() => onConceptSelect(item.searchTerm)}
-            >
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium text-foreground">
-                  {item.title}
+      <Panel
+        title="Context concepts"
+        eyebrow="LLM signal"
+        className="flex min-h-0 flex-col max-xl:min-h-[24rem]"
+        contentClassName="min-h-0 flex-1 overflow-hidden"
+      >
+        <ScrollArea className="h-full">
+          <div className="grid gap-2 pr-3">
+            {(conceptGraph?.concepts ?? []).slice(0, 12).map((item) => (
+              <button
+                key={item.id}
+                className="flex items-center justify-between gap-3 rounded-sm border border-border bg-muted/35 px-3 py-2 text-left transition hover:border-primary/35 hover:bg-muted/60"
+                type="button"
+                onClick={() => onConceptSelect(item.searchTerm)}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-foreground">
+                    {item.title}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {countLabel(item.occurrences, 'memory', 'memories')} /{' '}
+                    {Object.keys(item.typeCounts).slice(0, 2).join(', ')}
+                  </span>
                 </span>
-                <span className="text-sm text-muted-foreground">
-                  {countLabel(item.occurrences, 'memory', 'memories')} /{' '}
-                  {Object.keys(item.typeCounts).slice(0, 2).join(', ')}
-                </span>
-              </span>
-              <Badge className="bg-muted text-foreground hover:bg-muted">#{item.rank}</Badge>
-            </button>
-          ))}
-        </div>
+                <Badge className="bg-muted text-foreground hover:bg-muted">#{item.rank}</Badge>
+              </button>
+            ))}
+          </div>
+        </ScrollArea>
       </Panel>
     )
   }
 
   return (
-    <Panel title={concept.title} eyebrow="Focused concept">
-      <div className="grid gap-4">
-        <div className="grid grid-cols-3 gap-2">
-          <MetaTile
-            label={nounLabel(concept.occurrences, 'Memory', 'Memories')}
-            value={String(concept.occurrences)}
-          />
-          <MetaTile label="Strength" value={String(Math.round(concept.score))} />
-          <MetaTile
-            label="Updated"
-            value={concept.lastUpdated ? formatDate(concept.lastUpdated) : 'unknown'}
-          />
-        </div>
-        <CountList label="Types" values={concept.typeCounts} />
-        <div className="flex flex-wrap gap-2">
-          {concept.evidence.map((item) => (
-            <Badge key={item} className="bg-primary/10 text-primary hover:bg-primary/10">
-              {item}
-            </Badge>
-          ))}
-        </div>
-        <div className="grid gap-2">
-          {concept.samples.slice(0, 3).map((sample) => (
-            <div key={sample.id} className="rounded-md border border-border bg-background/40 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-foreground">{sample.type}</span>
-                <span className="text-sm text-muted-foreground">
-                  {formatDate(sample.updated_at)}
-                </span>
-              </div>
-              <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
-                {sample.content}
-              </p>
-            </div>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Hint label={conceptHints.consolidate}>
-            <Button onClick={() => onConsolidate(focusedConcept)}>
-              <Merge />
-              Consolidate
-            </Button>
-          </Hint>
-          <Hint label={conceptHints.markNoise}>
-            <Button variant="outline" onClick={() => onIgnore(focusedConcept)}>
-              <Ban />
-              Mark noise
-            </Button>
-          </Hint>
-        </div>
-      </div>
-    </Panel>
-  )
-}
-
-function ContextMiniPanel({
-  contextPreview,
-  onOpen,
-}: {
-  contextPreview: ContextPreview | null
-  onOpen: () => void
-}) {
-  return (
-    <Panel title="LLM context preview" eyebrow="Current read">
-      <div className="grid gap-4">
-        <div className="grid grid-cols-3 gap-2">
-          <MetaTile
-            label={nounLabel(contextPreview?.memoryCount ?? 0, 'Source', 'Sources')}
-            value={String(contextPreview?.memoryCount ?? 0)}
-          />
-          <MetaTile
-            label={nounLabel(contextPreview?.tokenEstimate ?? 0, 'Token', 'Tokens')}
-            value={String(contextPreview?.tokenEstimate ?? 0)}
-          />
-          <MetaTile
-            label="Generated"
-            value={contextPreview?.generatedAt ? formatDate(contextPreview.generatedAt) : 'pending'}
-          />
-        </div>
-        <pre className="max-h-56 overflow-hidden rounded-md border border-border bg-background/50 p-3 text-sm leading-5 text-muted-foreground">
-          {contextPreview?.content || 'No active project memory available for context.'}
-        </pre>
-        <Button variant="outline" onClick={onOpen}>
-          <FileText />
-          Open context view
-        </Button>
-      </div>
-    </Panel>
-  )
-}
-
-function MemoryModal({
-  children,
-  eyebrow,
-  open,
-  onClose,
-  title,
-}: {
-  children: ReactNode
-  eyebrow: string
-  open: boolean
-  onClose: () => void
-  title: string
-}) {
-  useEffect(() => {
-    if (!open) return
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose, open])
-
-  if (!open) return null
-
-  return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
+    <Panel
+      title={concept.title}
+      eyebrow="Focused concept"
+      className="flex min-h-0 flex-col max-xl:min-h-[24rem]"
+      contentClassName="min-h-0 flex-1 overflow-hidden"
     >
-      <section
-        aria-modal="true"
-        className="flex max-h-[calc(100vh-2rem)] w-[min(48rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-md border border-border bg-card shadow-2xl"
-        role="dialog"
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-              {eyebrow}
-            </p>
-            <h2 className="mt-1 truncate text-lg font-semibold text-foreground">{title}</h2>
+      <ScrollArea className="h-full">
+        <div className="grid gap-4 pr-3">
+          <div className="grid grid-cols-3 gap-2">
+            <MetaTile
+              label={nounLabel(concept.occurrences, 'Memory', 'Memories')}
+              value={String(concept.occurrences)}
+            />
+            <MetaTile label="Strength" value={String(Math.round(concept.score))} />
+            <MetaTile
+              label="Updated"
+              value={concept.lastUpdated ? formatDate(concept.lastUpdated) : 'unknown'}
+            />
           </div>
-          <Hint label="Close this memory detail modal.">
-            <Button size="icon" variant="outline" onClick={onClose}>
-              <X />
-            </Button>
-          </Hint>
-        </div>
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="p-4">{children}</div>
-        </ScrollArea>
-      </section>
-    </div>
-  )
-}
-
-function CreateForm({ onCreate }: { onCreate: (event: FormEvent<HTMLFormElement>) => void }) {
-  const [tags, setTags] = useState('')
-
-  return (
-    <form className="grid gap-4" onSubmit={onCreate}>
-      <TypeScopeFields type="knowledge" />
-      <TagField tags={tags} onTagsChange={setTags} />
-      <Label text="Memory">
-        <Textarea
-          className="min-h-56 border-border bg-background/60 text-foreground"
-          name="content"
-          placeholder="Write a concise, durable memory..."
-          required
-        />
-      </Label>
-      <Button className="w-fit" type="submit">
-        <Plus />
-        Create memory
-      </Button>
-    </form>
-  )
-}
-
-function Editor({
-  memory,
-  onAction,
-  onUpdate,
-}: {
-  memory: Memory
-  onAction: (action: MemoryAction) => void
-  onUpdate: (event: FormEvent<HTMLFormElement>) => void
-}) {
-  const isProposed = memory.metadata.status === 'proposed'
-  const isArchived = memory.metadata.status === 'archived'
-  const isDeleted = memory.metadata.status === 'deleted'
-  const isNoise = memory.metadata.status === 'noise'
-  const canEdit = !isProposed && !isArchived && !isDeleted && !isNoise
-  const [tags, setTags] = useState(memory.metadata.tags.join(', '))
-  const [dangerOpen, setDangerOpen] = useState(false)
-
-  useEffect(() => {
-    setTags(memory.metadata.tags.join(', '))
-  }, [memory.metadata.id, memory.metadata.tags])
-
-  return (
-    <form className="grid gap-4" onSubmit={onUpdate}>
-      <div className="grid grid-cols-2 gap-2 max-md:grid-cols-1">
-        <MetaTile label="Status" value={memory.metadata.status} />
-        <MetaTile label="Updated" value={formatDate(memory.metadata.updated_at)} />
-      </div>
-      <TypeScopeFields disabled={!canEdit} type={memory.metadata.type} />
-      <TagField disabled={!canEdit} tags={tags} onTagsChange={setTags} />
-      <Label text="Memory">
-        <Textarea
-          className="min-h-72 border-border bg-background/60 text-foreground"
-          defaultValue={memory.content}
-          name="content"
-          readOnly={!canEdit}
-          required
-        />
-      </Label>
-
-      {isProposed ? (
-        <div className="flex flex-wrap gap-2">
-          <Hint label={conceptHints.approve}>
-            <Button type="button" onClick={() => onAction('approve')}>
-              <Check />
-              Approve
-            </Button>
-          </Hint>
-          <Hint label={conceptHints.reject}>
-            <Button type="button" variant="destructive" onClick={() => onAction('reject')}>
-              <X />
-              Reject
-            </Button>
-          </Hint>
-        </div>
-      ) : (
-        <div className="grid gap-3">
+          <CountList label="Types" values={concept.typeCounts} />
           <div className="flex flex-wrap gap-2">
-            {canEdit ? (
-              <>
-                <Hint label={conceptHints.save}>
-                  <Button type="submit">
-                    <Save />
-                    Save
-                  </Button>
-                </Hint>
-                <Hint label={conceptHints.archive}>
-                  <Button type="button" variant="outline" onClick={() => onAction('archive')}>
-                    <Archive />
-                    Archive
-                  </Button>
-                </Hint>
-                <Hint label={conceptHints.markNoise}>
-                  <Button type="button" variant="outline" onClick={() => onAction('mark-noise')}>
-                    <Ban />
-                    Mark noise
-                  </Button>
-                </Hint>
-              </>
-            ) : null}
-            {isArchived || isDeleted || isNoise ? (
-              <Hint label={conceptHints.restore}>
-                <Button type="button" onClick={() => onAction('restore')}>
-                  <RotateCcw />
-                  Restore
-                </Button>
-              </Hint>
-            ) : null}
-          </div>
-          <div className="rounded-md border border-destructive/25 bg-destructive/10 p-3">
-            <button
-              className="flex items-center gap-2 text-sm font-medium text-destructive"
-              type="button"
-              onClick={() => setDangerOpen(!dangerOpen)}
-            >
-              <Trash2 className="size-4" />
-              Delete actions
-            </button>
-            {dangerOpen ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Hint label={conceptHints.softDelete}>
-                  <Button type="button" variant="outline" onClick={() => onAction('delete')}>
-                    <Trash2 />
-                    Soft delete
-                  </Button>
-                </Hint>
-                <Hint label={conceptHints.physicalDelete}>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={() => onAction('physical-delete')}
-                  >
-                    <Trash2 />
-                    Confirm physical delete
-                  </Button>
-                </Hint>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
-    </form>
-  )
-}
-
-function TagField({
-  disabled = false,
-  onTagsChange,
-  tags,
-}: {
-  disabled?: boolean
-  onTagsChange: (value: string) => void
-  tags: string
-}) {
-  return (
-    <Label text="Tags">
-      <Input
-        className="border-border bg-background/60 text-foreground"
-        disabled={disabled}
-        name="tags"
-        value={tags}
-        onChange={(event) => onTagsChange(event.target.value)}
-      />
-    </Label>
-  )
-}
-
-function KnowledgeGraphPanel({
-  directory,
-  graph,
-  onEvidence,
-}: {
-  directory: Map<string, Memory | SearchResult>
-  graph: KnowledgeGraphResponse | null
-  onEvidence: (id: string) => void
-}) {
-  const [selectedRelationId, setSelectedRelationId] = useState<string | null>(null)
-  const rawEntities = graph?.entities ?? []
-  const rawRelations = graph?.relations ?? []
-  const evidenceIds = Array.from(
-    new Set([
-      ...rawEntities.flatMap((entity) => entity.evidence_ids),
-      ...rawRelations.flatMap((relation) => relation.evidence_ids),
-    ])
-  )
-  const relations = rawRelations.filter(isDisplayKnowledgeRelation)
-  const relationEntityIds = new Set(
-    relations.flatMap((relation) => [relation.source, relation.target])
-  )
-  const entities = rawEntities.filter((entity) => relationEntityIds.has(entity.id))
-  const entityById = new Map((graph?.entities ?? []).map((entity) => [entity.id, entity]))
-  const relationTypes = groupBy(relations, (relation) => relation.type)
-  const selectedRelation =
-    relations.find((relation) => relation.id === selectedRelationId) ?? relations[0] ?? null
-  const hasGraph = evidenceIds.length >= 2 && relations.length > 0
-
-  return (
-    <section className="grid grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.65fr)] gap-4 max-xl:grid-cols-1">
-      <Panel
-        title="Relation explorer"
-        eyebrow="Knowledge graph"
-        toolbar={
-          <div className="flex flex-wrap justify-end gap-2 text-sm">
-            <GraphMetric label="Entities" value={String(entities.length)} />
-            <GraphMetric label="Relations" value={String(relations.length)} />
-            <GraphMetric label="Evidence" value={String(evidenceIds.length)} />
-          </div>
-        }
-      >
-        {hasGraph ? (
-          <div className="grid gap-4">
-            <ScrollArea className="h-152">
-              <div className="grid gap-4 pr-3">
-                {Object.entries(relationTypes).map(([type, typedRelations]) => (
-                  <section key={type} className="grid gap-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <Badge className="bg-primary/10 text-primary hover:bg-primary/10">
-                        {type}
-                      </Badge>
-                      <span className="text-sm text-muted-foreground">
-                        {countLabel(typedRelations.length, 'relation', 'relations')}
-                      </span>
-                    </div>
-
-                    <div className="grid gap-2">
-                      {typedRelations.slice(0, 16).map((relation) => {
-                        const source = entityById.get(relation.source)
-                        const target = entityById.get(relation.target)
-                        const selected = selectedRelation?.id === relation.id
-
-                        return (
-                          <button
-                            key={relation.id}
-                            className={cn(
-                              'grid gap-2 rounded-md border px-3 py-3 text-left transition',
-                              selected
-                                ? 'border-primary/35 bg-primary/10'
-                                : 'border-border bg-muted/20 hover:border-primary/30 hover:bg-muted/35'
-                            )}
-                            type="button"
-                            onClick={() => {
-                              setSelectedRelationId(relation.id)
-                            }}
-                          >
-                            <span className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-sm">
-                              <span className="truncate font-medium text-foreground">
-                                {source?.label ?? relation.source}
-                              </span>
-                              <span className="text-muted-foreground">-&gt;</span>
-                              <span className="truncate font-medium text-foreground">
-                                {target?.label ?? relation.target}
-                              </span>
-                            </span>
-                            <span className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                              <span className="truncate">{relation.explanation}</span>
-                              <span className="shrink-0">
-                                {countLabel(relation.evidence_ids.length, 'evidence', 'evidence')}
-                              </span>
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </section>
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
-        ) : (
-          <div className="grid h-152 place-items-center rounded-md border border-dashed border-border bg-muted/20 p-8 text-center">
-            <div className="max-w-md">
-              <p className="text-sm font-medium text-foreground">
-                Knowledge graph needs at least 2 memories.
-              </p>
-              <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-                Add or approve more memories to reveal useful relations between concepts, decisions,
-                files, and evidence.
-              </p>
-              {evidenceIds[0] ? (
-                <Button
-                  className="mt-4"
-                  variant="outline"
-                  onClick={() => onEvidence(evidenceIds[0])}
-                >
-                  <ListFilter />
-                  Open current evidence
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        )}
-      </Panel>
-
-      <Panel title="Relation detail" eyebrow="Inspector">
-        <div className="grid gap-4">
-          {selectedRelation ? (
-            <div className="grid gap-4">
-              <div>
-                <Badge className="bg-primary/10 text-primary hover:bg-primary/10">
-                  {selectedRelation.type}
-                </Badge>
-                <h3 className="mt-3 text-lg font-semibold leading-7 text-foreground">
-                  {entityById.get(selectedRelation.source)?.label ?? selectedRelation.source}
-                  <span className="mx-2 text-muted-foreground">-&gt;</span>
-                  {entityById.get(selectedRelation.target)?.label ?? selectedRelation.target}
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {selectedRelation.explanation}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-                  Evidence
-                </p>
-                <EvidenceLinks
-                  directory={directory}
-                  ids={selectedRelation.evidence_ids}
-                  onOpen={onEvidence}
-                />
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Select a relation to inspect.</p>
-          )}
-
-          {relations.length ? (
-            <div className="rounded-md bg-muted/25 p-3 text-sm leading-6 text-muted-foreground">
-              Select a relation on the left to review the exact evidence that produced it.
-            </div>
-          ) : null}
-        </div>
-      </Panel>
-    </section>
-  )
-}
-
-function GraphMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="inline-flex items-center gap-2 rounded-full bg-muted/50 px-3 py-1 text-muted-foreground">
-      <span>{label}</span>
-      <strong className="text-foreground">{value}</strong>
-    </span>
-  )
-}
-
-function isDisplayKnowledgeRelation(relation: KnowledgeRelation): boolean {
-  return relation.type !== 'mentions' && relation.source !== relation.target
-}
-
-interface RecommendationDescriptor {
-  summary: string
-  rule: string
-  confidence: number
-  before: string
-  after: string
-  acceptLabel: string
-  acceptHint: string
-  rejectHint: string
-  deferHint: string
-  details: Array<{ label: string; value: string }>
-}
-
-function describeRecommendation(rec: MemoryRecommendation): RecommendationDescriptor {
-  const evidenceCount = rec.evidence_ids.length
-  const details: Array<{ label: string; value: string }> = []
-
-  switch (rec.type) {
-    case 'distill_candidates': {
-      const sources = rec.payload?.source_ids?.length ?? evidenceCount
-      if (rec.payload?.concept) details.push({ label: 'Concept', value: rec.payload.concept })
-      details.push({ label: 'Sources', value: String(sources) })
-      if (typeof rec.payload?.compression_ratio === 'number') {
-        details.push({
-          label: 'Compression',
-          value: `${Math.round(rec.payload.compression_ratio * 100)}%`,
-        })
-      }
-      return {
-        summary: `Creates one proposed "knowledge" memory that consolidates ${sources} sources and archives the originals (they leave the LLM context but stay restorable from Evidence). Re-clicking is safe: if the same set was already distilled, no duplicate is created.`,
-        rule: 'Recurring concept: at least 3 active or proposed memories share a tag or keyword.',
-        confidence: confidenceFromEvidence(sources, 3, 92),
-        before: `${sources} memories can repeat separately in the LLM context.`,
-        after: 'One proposed distillation is created; source memories are archived and linked.',
-        acceptLabel: 'Consolidate into one memory',
-        acceptHint:
-          'Creates the distilled memory and archives the source memories. Idempotent — clicking twice does not duplicate.',
-        rejectHint: 'Dismiss this distillation suggestion. It will not be proposed again.',
-        deferHint: 'Hide for now. The suggestion may resurface next time you refresh.',
-        details,
-      }
-    }
-    case 'noise_candidate': {
-      const targetId = rec.payload?.target_id ?? rec.evidence_ids[0]
-      if (targetId) details.push({ label: 'Memory', value: targetId })
-      return {
-        summary:
-          'Will mark this low-signal memory as Noise. It is hidden from the LLM context and the map, but kept for audit.',
-        rule: 'Low signal: very short content, generated fragment, or explicit low-value tag.',
-        confidence: 84,
-        before: 'The memory can remain visible in the map and context candidates.',
-        after: 'The memory is marked as noise, hidden from context, and remains restorable.',
-        acceptLabel: 'Mark as noise',
-        acceptHint: 'Move this memory to the Noise bucket. Reversible from the Evidence view.',
-        rejectHint: 'Keep this memory visible and stop suggesting it.',
-        deferHint: 'Hide for now without changing the memory.',
-        details,
-      }
-    }
-    case 'obsolete_candidate': {
-      const older = rec.payload?.target_id ?? rec.evidence_ids[0]
-      const replacement = rec.payload?.replacement_id ?? rec.evidence_ids[1]
-      if (older) details.push({ label: 'Archive', value: older })
-      if (replacement) details.push({ label: 'Replaced by', value: replacement })
-      return {
-        summary:
-          'Will archive the older memory because a newer one appears to replace it. Archived memories stay searchable but are not loaded into the LLM context.',
-        rule: 'Obsolete pair: newer decision overlaps the older one and uses replacement language.',
-        confidence: 78,
-        before: 'Both memories can compete for the same context slot.',
-        after: 'The older memory is archived while the replacement stays reachable.',
-        acceptLabel: 'Archive older',
-        acceptHint: 'Archive the older memory. Restorable from the Evidence view.',
-        rejectHint: 'Keep both memories Active and stop suggesting this archival.',
-        deferHint: 'Hide for now without archiving.',
-        details,
-      }
-    }
-    case 'contradiction': {
-      const left = rec.payload?.left_id ?? rec.evidence_ids[0]
-      const right = rec.payload?.right_id ?? rec.evidence_ids[1]
-      if (left) details.push({ label: 'Memory A', value: left })
-      if (right) details.push({ label: 'Memory B', value: right })
-      return {
-        summary:
-          'Choose which memory is preferred. PAMH will keep that memory active, archive the opposing memory, and link the archived memory to the preferred one.',
-        rule: 'Contradiction: memories share important terms and contain opposing language.',
-        confidence: 70,
-        before: 'Both memories may give the agent conflicting guidance.',
-        after: 'Your chosen memory stays active; the opposing memory is archived and linked.',
-        acceptLabel: 'Inspect',
-        acceptHint: 'Open the evidence memories to review the contradiction.',
-        rejectHint: 'Dismiss this contradiction warning.',
-        deferHint: 'Hide for now. The contradiction will resurface on next refresh.',
-        details,
-      }
-    }
-    case 'strong_concept': {
-      if (rec.payload?.concept) details.push({ label: 'Concept', value: rec.payload.concept })
-      if (typeof rec.payload?.count === 'number')
-        details.push({ label: 'Memories', value: String(rec.payload.count) })
-      return {
-        summary:
-          'Heads-up: this concept recurs across the current LLM context. Consider creating a curated knowledge or rule to anchor it.',
-        rule: 'Strong concept: at least 5 visible memories share the same tag or keyword.',
-        confidence:
-          typeof rec.payload?.count === 'number'
-            ? confidenceFromEvidence(rec.payload.count, 5, 88)
-            : 72,
-        before: 'The concept is spread across several independent memories.',
-        after: 'You can curate a single anchor memory and keep the context easier to scan.',
-        acceptLabel: 'Open evidence',
-        acceptHint: 'Open the Evidence view filtered by this concept.',
-        rejectHint: 'Dismiss this hint.',
-        deferHint: 'Hide for now.',
-        details,
-      }
-    }
-    default:
-      return {
-        summary: rec.action
-          ? `Will apply the "${rec.action.replaceAll('_', ' ')}" action on ${evidenceCount} memory${evidenceCount > 1 ? 'ies' : ''}.`
-          : 'No automatic action — review the evidence manually.',
-        rule: 'Generic recommendation: inspect the linked evidence before acting.',
-        confidence: confidenceFromEvidence(evidenceCount, 1, 74),
-        before: 'The current memory state remains unchanged.',
-        after: rec.action
-          ? `The ${rec.action.replaceAll('_', ' ')} action is applied.`
-          : 'No automatic action is applied.',
-        acceptLabel: rec.action ? 'Apply' : 'Inspect',
-        acceptHint: 'Apply this recommendation.',
-        rejectHint: 'Dismiss this recommendation.',
-        deferHint: 'Hide for now.',
-        details,
-      }
-  }
-}
-
-function confidenceFromEvidence(count: number, threshold: number, cap: number): number {
-  if (count <= 0) return 50
-  const overThreshold = Math.max(0, count - threshold)
-  return Math.min(cap, 62 + overThreshold * 6 + Math.min(count, threshold) * 4)
-}
-
-function GovernancePanel({
-  conceptGraph,
-  directory,
-  includeNoise,
-  onEvidenceSelect,
-  onIncludeNoiseChange,
-  onPreferContradiction,
-  onRecommendationAction,
-  recommendations,
-  statsResponse,
-}: {
-  conceptGraph: ApiConceptGraph | null
-  directory: Map<string, Memory | SearchResult>
-  includeNoise: boolean
-  onEvidenceSelect: (id: string) => void
-  onIncludeNoiseChange: (include: boolean) => void
-  onPreferContradiction: (id: string, preferredId: string) => void
-  onRecommendationAction: (id: string, action: 'apply' | 'reject' | 'defer') => void
-  recommendations: RecommendationsResponse | null
-  statsResponse: StatsResponse | null
-}) {
-  const recs = recommendations?.recommendations ?? []
-  const openCount = recommendations?.metrics.proposed_recommendations ?? recs.length
-  const preservationPct = recommendations?.metrics
-    ? Math.round(recommendations.metrics.source_preservation_rate * 100)
-    : 100
-
-  return (
-    <section className="grid gap-4">
-      <div className="grid grid-cols-[minmax(22rem,0.7fr)_minmax(28rem,1.3fr)] gap-4 max-xl:grid-cols-1">
-        <div className="grid gap-4">
-          <Panel title="View hygiene" eyebrow="Governance">
-            <div className="grid gap-3">
-              <Hint side="right" label={conceptHints.showNoise}>
-                <div>
-                  <ToggleRow
-                    active={includeNoise}
-                    icon={Ban}
-                    label={`${includeNoise ? 'Hide' : 'Show'} ${countLabel(
-                      statsResponse?.excludedNoiseMemories ?? 0,
-                      'memory marked as noise',
-                      'memories marked as noise'
-                    )}`}
-                    value={countLabel(
-                      statsResponse?.excludedNoiseMemories ?? 0,
-                      includeNoise ? 'shown item' : 'hidden item',
-                      includeNoise ? 'shown items' : 'hidden items'
-                    )}
-                    onToggle={() => onIncludeNoiseChange(!includeNoise)}
-                  />
-                </div>
-              </Hint>
-              <div className="rounded-md bg-muted/35 p-3">
-                <p className="text-sm font-medium text-foreground">Raw project store</p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {countLabel(
-                    statsResponse?.rawTotalMemories ?? 0,
-                    'raw indexed memory',
-                    'raw indexed memories'
-                  )}{' '}
-                  total,{' '}
-                  {countLabel(
-                    statsResponse?.stats.total ?? 0,
-                    'visible memory',
-                    'visible memories'
-                  )}{' '}
-                  in the working map.
-                </p>
-              </div>
-            </div>
-          </Panel>
-          <Panel title="Ignored concepts" eyebrow="Noise map">
-            <div className="flex flex-wrap gap-2">
-              {conceptGraph?.ignoredConcepts.length ? (
-                conceptGraph.ignoredConcepts.map((concept) => (
-                  <Badge
-                    key={concept}
-                    className="bg-destructive/10 text-destructive hover:bg-destructive/10"
-                  >
-                    {concept}
-                  </Badge>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No ignored concepts yet. Mark a concept as noise from the Concepts map or from a
-                  recommendation to keep it out of the LLM context.
-                </p>
-              )}
-            </div>
-          </Panel>
-        </div>
-        <Panel
-          title="Recommendations"
-          eyebrow="Assisted review"
-          toolbar={
-            <Hint
-              label={`Source preservation rate: % of original memories still reachable after applied recommendations. 100% means nothing has been lost.`}
-            >
-              <Badge className="bg-muted text-foreground hover:bg-muted">
-                {countLabel(openCount, 'open suggestion', 'open suggestions')} · {preservationPct}%
-                preserved
-              </Badge>
-            </Hint>
-          }
-        >
-          <ScrollArea className="h-184">
-            <div className="grid gap-3 pr-3">
-              {recs.length === 0 ? (
-                <div className="grid place-items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 p-8 text-center">
-                  <Check className="size-6 text-primary" />
-                  <p className="text-sm font-medium text-foreground">All clean!</p>
-                  <p className="max-w-sm text-sm leading-5 text-muted-foreground">
-                    PAMH has no maintenance suggestion for now. Keep capturing memories — new
-                    suggestions will appear here when patterns emerge.
-                  </p>
-                </div>
-              ) : null}
-              {recs.slice(0, 30).map((recommendation, index) => {
-                const descriptor = describeRecommendation(recommendation)
-                const contradictionIds =
-                  recommendation.type === 'contradiction'
-                    ? [
-                        recommendation.payload?.left_id ?? recommendation.evidence_ids[0],
-                        recommendation.payload?.right_id ?? recommendation.evidence_ids[1],
-                      ].filter((id): id is string => Boolean(id))
-                    : []
-                return (
-                  <div
-                    key={recommendation.id}
-                    className="grid gap-3 rounded-md border border-border bg-muted/30 p-3"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        {index === 0 ? (
-                          <Hint label="Top suggestion based on impact. Starting here is a safe choice.">
-                            <Badge className="bg-primary text-primary-foreground hover:bg-primary">
-                              <Sparkles className="size-3" />
-                              Suggested next
-                            </Badge>
-                          </Hint>
-                        ) : null}
-                        <Hint label={`Recommendation type: ${recommendation.type}`}>
-                          <Badge className="bg-primary/10 text-primary hover:bg-primary/10">
-                            {recommendation.type.replaceAll('_', ' ')}
-                          </Badge>
-                        </Hint>
-                      </div>
-                      <span className="text-xs uppercase tracking-widest text-muted-foreground">
-                        {recommendation.action
-                          ? recommendation.action.replaceAll('_', ' ')
-                          : 'manual review'}
-                      </span>
-                    </div>
-                    <p className="text-sm font-medium text-foreground">{recommendation.title}</p>
-                    <p className="text-sm leading-5 text-muted-foreground">
-                      {recommendation.explanation}
-                    </p>
-                    <div className="grid gap-2 md:grid-cols-[1fr_7rem]">
-                      <div className="rounded-sm border border-border bg-background/55 p-2 text-sm leading-5">
-                        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                          Rule
-                        </span>
-                        <p className="mt-1 text-foreground">{descriptor.rule}</p>
-                      </div>
-                      <div className="rounded-sm border border-border bg-background/55 p-2 text-sm">
-                        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                          Score
-                        </span>
-                        <p className="mt-1 text-lg font-semibold text-foreground">
-                          {descriptor.confidence}%
-                        </p>
-                      </div>
-                    </div>
-                    <div className="grid gap-2 md:grid-cols-2">
-                      <PreviewTile label="Before" value={descriptor.before} />
-                      <PreviewTile label="After" value={descriptor.after} />
-                    </div>
-                    <div className="rounded-sm border border-primary/20 bg-primary/8 p-2 text-sm leading-5">
-                      <span className="text-xs font-semibold uppercase tracking-widest text-primary/80">
-                        If you accept
-                      </span>
-                      <p className="mt-1 text-foreground">{descriptor.summary}</p>
-                    </div>
-                    {descriptor.details.length ? (
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        {descriptor.details.map((detail) => (
-                          <span
-                            key={detail.label}
-                            className="rounded-sm bg-background/60 px-2 py-1 text-muted-foreground"
-                          >
-                            <span className="uppercase tracking-widest opacity-70">
-                              {detail.label}
-                            </span>{' '}
-                            <span className="text-foreground">{detail.value}</span>
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="grid gap-1.5">
-                      <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                        Affected memories ({recommendation.evidence_ids.length})
-                      </span>
-                      <EvidenceLinks
-                        directory={directory}
-                        ids={recommendation.evidence_ids}
-                        onOpen={onEvidenceSelect}
-                      />
-                    </div>
-                    <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-                      {contradictionIds.length === 2 ? (
-                        <>
-                          <Hint
-                            label={`Keep ${contradictionIds[0]} active and archive ${contradictionIds[1]}.`}
-                          >
-                            <Button
-                              size="sm"
-                              onClick={() =>
-                                onPreferContradiction(recommendation.id, contradictionIds[0])
-                              }
-                            >
-                              <Check />
-                              Keep A
-                            </Button>
-                          </Hint>
-                          <Hint
-                            label={`Keep ${contradictionIds[1]} active and archive ${contradictionIds[0]}.`}
-                          >
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                onPreferContradiction(recommendation.id, contradictionIds[1])
-                              }
-                            >
-                              <Check />
-                              Keep B
-                            </Button>
-                          </Hint>
-                        </>
-                      ) : null}
-                      {recommendation.action ? (
-                        <Hint label={descriptor.acceptHint}>
-                          <Button
-                            size="sm"
-                            onClick={() => onRecommendationAction(recommendation.id, 'apply')}
-                          >
-                            <Check />
-                            {descriptor.acceptLabel}
-                          </Button>
-                        </Hint>
-                      ) : null}
-                      <Hint label={descriptor.deferHint}>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onRecommendationAction(recommendation.id, 'defer')}
-                        >
-                          <Circle />
-                          Defer
-                        </Button>
-                      </Hint>
-                      <Hint label={descriptor.rejectHint}>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onRecommendationAction(recommendation.id, 'reject')}
-                        >
-                          <X />
-                          Reject
-                        </Button>
-                      </Hint>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </ScrollArea>
-        </Panel>
-      </div>
-    </section>
-  )
-}
-
-function PreviewTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-sm bg-background/45 p-2 text-sm leading-5">
-      <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-        {label}
-      </span>
-      <p className="mt-1 text-foreground">{value}</p>
-    </div>
-  )
-}
-
-function EvidenceLinks({
-  directory,
-  ids,
-  onOpen,
-}: {
-  directory?: Map<string, Memory | SearchResult>
-  ids: string[]
-  onOpen?: (id: string) => void
-}) {
-  if (!ids.length) return null
-
-  return (
-    <div className="mt-2 grid gap-1.5">
-      {ids.slice(0, 10).map((id) => {
-        const memory = directory?.get(id)
-        const metadata = memory ? getMetadata(memory) : null
-        const title = memory ? getMemoryTitle(memory.content) : id
-        const subtitle = metadata
-          ? `${metadata.type} · ${metadata.status} · ${formatDate(metadata.updated_at)}`
-          : 'unknown memory (no longer in this store)'
-        return (
-          <Hint
-            key={id}
-            side="top"
-            label={
-              memory ? (
-                <span className="grid gap-1">
-                  <span className="font-mono text-xs opacity-70">{id}</span>
-                  <span className="line-clamp-4 whitespace-pre-wrap">{memory.content}</span>
-                </span>
-              ) : (
-                <span className="font-mono text-xs">{id}</span>
-              )
-            }
-          >
-            <button
-              className="grid gap-0.5 rounded-sm border border-border bg-background/70 px-2 py-1.5 text-left transition hover:border-primary/40 hover:bg-background"
-              disabled={!onOpen}
-              type="button"
-              onClick={() => onOpen?.(id)}
-            >
-              <span className="truncate text-sm font-medium text-foreground">{title}</span>
-              <span className="truncate text-xs text-muted-foreground">{subtitle}</span>
-            </button>
-          </Hint>
-        )
-      })}
-      {ids.length > 10 ? (
-        <span className="text-xs text-muted-foreground">+ {ids.length - 10} more</span>
-      ) : null}
-    </div>
-  )
-}
-
-function ToggleRow({
-  active,
-  icon: Icon,
-  label,
-  onToggle,
-  value,
-}: {
-  active: boolean
-  icon: LucideIcon
-  label: string
-  onToggle: () => void
-  value: string
-}) {
-  return (
-    <button
-      className={cn(
-        'flex items-center justify-between gap-4 rounded-sm border px-3 py-3 text-left transition',
-        active
-          ? 'border-primary/35 bg-primary/10 text-primary'
-          : 'border-border bg-muted/35 text-foreground hover:bg-muted/60'
-      )}
-      type="button"
-      onClick={onToggle}
-    >
-      <span className="flex min-w-0 items-center gap-3">
-        <Icon className="size-4 shrink-0" />
-        <span className="truncate text-sm font-medium">{label}</span>
-      </span>
-      <span className="text-sm text-muted-foreground">{value}</span>
-    </button>
-  )
-}
-
-function Panel({
-  children,
-  eyebrow,
-  title,
-  toolbar,
-}: {
-  children: ReactNode
-  eyebrow: string
-  title: string
-  toolbar?: ReactNode
-}) {
-  return (
-    <section className="rounded-md border border-border bg-card">
-      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-            {eyebrow}
-          </p>
-          <h2 className="mt-1 truncate text-lg font-semibold text-foreground">{title}</h2>
-        </div>
-        {toolbar}
-      </div>
-      <div className="p-4">{children}</div>
-    </section>
-  )
-}
-
-function TypeScopeFields({ disabled = false, type }: { disabled?: boolean; type: string }) {
-  return (
-    <div className="grid gap-3">
-      <Label
-        text="Type"
-        hint="Category of memory. Determines how PAMH treats it: decision/knowledge/rule/preference are durable; session/task/mistake/pattern have specialized lifecycles."
-      >
-        <Select defaultValue={type} disabled={disabled} name="type">
-          <SelectTrigger className="w-full border-border bg-background/60 text-foreground">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {memoryTypes.map((item) => (
-              <SelectItem key={item} value={item} title={typeHints[item]}>
+            {concept.evidence.map((item) => (
+              <Badge key={item} className="bg-primary/10 text-primary hover:bg-primary/10">
                 {item}
-              </SelectItem>
+              </Badge>
             ))}
-          </SelectContent>
-        </Select>
-      </Label>
-    </div>
-  )
-}
-
-function Label({ children, text, hint }: { children: ReactNode; text: string; hint?: ReactNode }) {
-  return (
-    <label className="grid gap-2">
-      {hint ? (
-        <Hint label={hint}>
-          <span className="w-fit cursor-help text-sm font-semibold uppercase tracking-widest text-muted-foreground underline decoration-dotted underline-offset-4">
-            {text}
-          </span>
-        </Hint>
-      ) : (
-        <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-          {text}
-        </span>
-      )}
-      {children}
-    </label>
-  )
-}
-
-function MetaTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md bg-muted/35 p-3">
-      <p className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1 truncate text-sm text-foreground">{value}</p>
-    </div>
+          </div>
+          <div className="grid gap-2">
+            {concept.samples.slice(0, 3).map((sample) => (
+              <div key={sample.id} className="rounded-md border border-border bg-background/40 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-foreground">{sample.type}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {formatDate(sample.updated_at)}
+                  </span>
+                </div>
+                <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                  {sample.content}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Hint label={conceptHints.consolidate}>
+              <Button onClick={() => onConsolidate(focusedConcept)}>
+                <Merge />
+                Consolidate
+              </Button>
+            </Hint>
+            <Hint label={conceptHints.markNoise}>
+              <Button variant="outline" onClick={() => onIgnore(focusedConcept)}>
+                <Ban />
+                Mark noise
+              </Button>
+            </Hint>
+          </div>
+        </div>
+      </ScrollArea>
+    </Panel>
   )
 }
 
@@ -2155,7 +1112,7 @@ function MemoryGraph({
   return (
     <div
       ref={containerRef}
-      className="memory-graph h-144 min-h-112 overflow-hidden max-md:h-112"
+      className="memory-graph min-h-0 flex-1 overflow-hidden max-xl:min-h-96 max-md:min-h-80"
       role="img"
       aria-label="Interactive network of strong memory concepts"
     />
@@ -2194,7 +1151,7 @@ class MemoryGraphView {
     this.container.innerHTML = ''
     if (!conceptGraph?.concepts.length) {
       container.innerHTML =
-        '<p class="grid h-full min-h-112 place-items-center text-sm text-muted-foreground">No concepts in the current LLM context.</p>'
+        '<p class="grid h-full min-h-80 place-items-center text-sm text-muted-foreground">No concepts in the current LLM context.</p>'
       this.resizeObserver = new ResizeObserver(() => undefined)
       return
     }
@@ -2215,7 +1172,7 @@ class MemoryGraphView {
     controls.enableRotate = mapLayout === '3d'
     controls.autoRotate = mapLayout === '3d'
     controls.autoRotateSpeed = 0.22
-    controls.minDistance = 5
+    controls.minDistance = 3.5
     controls.maxDistance = 42
     this.controls = controls
 
@@ -2226,11 +1183,11 @@ class MemoryGraphView {
     this.scene.add(keyLight)
 
     const graph = this.build(conceptGraph, focusedConcept)
-    this.positionCamera(graph, focusedConcept)
 
     this.resizeObserver = new ResizeObserver(() => this.resize())
     this.resizeObserver.observe(this.container)
     this.resize()
+    this.positionCamera(graph, focusedConcept)
 
     this.container.addEventListener('pointerdown', this.handlePointerDown)
     this.container.addEventListener('pointermove', this.handlePointerMove)
@@ -2338,13 +1295,24 @@ class MemoryGraphView {
 
   private positionCamera(graph: ConceptGraph, focusedConcept: string): void {
     const focused = graph.nodes.find((node) => node.searchTerm === focusedConcept)
-    const target = focused?.position ?? new THREE.Vector3(0, 0, 0)
-    const distance = focused ? 9.5 : this.mapLayout === '2d' ? 15 : 17
+    const bounds = new THREE.Box3().setFromPoints(graph.nodes.map((node) => node.position))
+    const target = focused?.position ?? bounds.getCenter(new THREE.Vector3())
+    const size = bounds.getSize(new THREE.Vector3())
+    const verticalFov = THREE.MathUtils.degToRad(this.camera.fov)
+    const horizontalFov = 2 * Math.atan(Math.tan(verticalFov * 0.5) * this.camera.aspect)
+    const fitWidth = Math.max(size.x * 0.5 + 2.2, 3.6) / Math.tan(horizontalFov * 0.5)
+    const fitHeight = Math.max(size.y * 0.5 + 1.15, 2.1) / Math.tan(verticalFov * 0.5)
+    const distanceToFit = Math.max(fitWidth, fitHeight, 6.3 + size.z * 0.2)
+    const distance = focused ? 7.5 : THREE.MathUtils.clamp(distanceToFit, 6.5, 15)
 
     if (this.mapLayout === '2d') {
       this.camera.position.set(target.x, target.y, distance)
     } else {
-      this.camera.position.set(target.x + 2.5, target.y + 6.5, target.z + distance)
+      this.camera.position.set(
+        target.x + distance * 0.16,
+        target.y + distance * 0.24,
+        target.z + distance
+      )
     }
     this.camera.lookAt(target)
     if (this.controls) this.controls.target.copy(target)
@@ -2508,18 +1476,6 @@ function conceptTooltipHtml(concept: ApiConceptNode): string {
   ]
     .filter(Boolean)
     .join('')
-}
-
-function getMetadata(memory: Memory | SearchResult): MemoryMetadata {
-  return 'metadata' in memory ? memory.metadata : memory
-}
-
-function groupBy<T>(items: T[], getKey: (item: T) => string): Record<string, T[]> {
-  return items.reduce<Record<string, T[]>>((acc, item) => {
-    const key = getKey(item)
-    acc[key] = [...(acc[key] ?? []), item]
-    return acc
-  }, {})
 }
 
 function getActiveConcept(
@@ -2720,24 +1676,17 @@ function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
-function formatDate(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'unknown'
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date)
-}
-
-function countLabel(count: number, singular: string, plural: string): string {
-  return `${count} ${nounLabel(count, singular, plural)}`
-}
-
-function nounLabel(count: number, singular: string, plural: string): string {
-  return count === 1 ? singular : plural
-}
-
-function getMemoryTitle(content: string): string {
-  const firstLine = content.replace(/\s+/g, ' ').trim()
-  if (!firstLine) return 'Untitled memory'
-  return firstLine.length > 88 ? `${firstLine.slice(0, 88).trim()}...` : firstLine
+function pastTenseAction(action: MemoryAction): string {
+  const labels: Record<MemoryAction, string> = {
+    archive: 'Archived',
+    restore: 'Restored',
+    delete: 'Deleted',
+    'physical-delete': 'Physically deleted',
+    approve: 'Approved',
+    reject: 'Rejected',
+    'mark-noise': 'Marked as noise',
+  }
+  return labels[action] ?? capitalize(action)
 }
 
 function escapeHtml(value: string): string {

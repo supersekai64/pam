@@ -39,6 +39,23 @@ export async function approveMemory(basePath: string, id: string): Promise<boole
 
   const index = new MemoryIndex(basePath)
   index.indexMemory(memory, filePath)
+
+  const supersededId = memory.metadata.supersedes
+  if (supersededId) {
+    const supersededFilePath = await findMemoryFile(basePath, supersededId)
+    if (supersededFilePath) {
+      const supersededRaw = await readFile(supersededFilePath, 'utf-8')
+      const superseded = parseMarkdown(supersededRaw)
+      if (!superseded.metadata.superseded_by || superseded.metadata.superseded_by === id) {
+        superseded.metadata.status = 'archived'
+        superseded.metadata.superseded_by = id
+        superseded.metadata.updated_at = memory.metadata.updated_at
+        await writeFile(supersededFilePath, serializeMarkdown(superseded), 'utf-8')
+        index.indexMemory(superseded, supersededFilePath)
+      }
+    }
+  }
+
   index.close()
 
   await recordMemoryDebugEvent(basePath, {
@@ -46,7 +63,7 @@ export async function approveMemory(basePath: string, id: string): Promise<boole
     outcome: 'ok',
     memory_id: id,
     source: memory.metadata.source,
-    details: { file_path: filePath },
+    details: { file_path: filePath, supersedes: supersededId },
     before,
     after: summarizeMemoryForDebug(memory),
   })

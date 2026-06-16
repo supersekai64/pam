@@ -144,6 +144,40 @@ describe('intelligence layer', () => {
     expect(graph.relations.every((relation) => relation.evidence_ids.length > 0)).toBe(true)
   })
 
+  it('uses readable content titles for memory entities in the knowledge graph', async () => {
+    const source = await createMemory(memoryPath, {
+      type: 'decision',
+      scope: 'project',
+      status: 'active',
+      title: 'Import collision policy',
+      tags: ['import'],
+      content: 'Import collision handling should preserve replacement history.',
+    })
+    const distilled = await createMemory(memoryPath, {
+      type: 'knowledge',
+      scope: 'project',
+      status: 'active',
+      tags: ['import', 'distilled'],
+      source_ids: [source.metadata.id],
+      content: 'Import is a recurring PAMH project signal supported by source memories.',
+    })
+
+    const graph = await buildKnowledgeGraph(memoryPath)
+    const sourceEntity = graph.entities.find(
+      (entity) => entity.id === `memory:${source.metadata.id}`
+    )
+    const distilledEntity = graph.entities.find(
+      (entity) => entity.id === `memory:${distilled.metadata.id}`
+    )
+
+    expect(sourceEntity?.label).toBe('Import collision policy')
+    expect(distilledEntity?.label).toBe(
+      'Import is a recurring PAMH project signal supported by source memories.'
+    )
+    expect(sourceEntity?.label).not.toBe(source.metadata.id)
+    expect(distilledEntity?.label).not.toBe(distilled.metadata.id)
+  })
+
   it('resolves contradiction recommendations by preferring one memory', async () => {
     const left = await createMemory(memoryPath, {
       type: 'decision',

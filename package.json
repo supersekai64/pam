@@ -1,6 +1,6 @@
 {
   "name": "pamh-monorepo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Portable AI Memory Hub",
   "type": "module",
@@ -10,6 +10,7 @@
     "setup": "pnpm install && pnpm build && pnpm link:cli",
     "build": "pnpm -r run build",
     "test": "vitest run",
+    "test:e2e": "pnpm build && playwright test",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "link:cli": "npm --prefix packages/cli link",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@playwright/test": "^1.61.0",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^3.0.0",
     "eslint": "^9.0.0",

@@ -6,6 +6,7 @@ describe('parseMarkdown', () => {
   it('should parse frontmatter and content', () => {
     const raw = `---
 id: mem_abc123
+title: Database architecture
 type: decision
 scope: global
 status: active
@@ -22,6 +23,7 @@ This is the memory content.`
     const memory = parseMarkdown(raw)
 
     expect(memory.metadata.id).toBe('mem_abc123')
+    expect(memory.metadata.title).toBe('Database architecture')
     expect(memory.metadata.type).toBe('decision')
     expect(memory.metadata.scope).toBe('project')
     expect(memory.metadata.status).toBe('active')
@@ -148,6 +150,7 @@ describe('serializeMarkdown', () => {
     const original: Memory = {
       metadata: {
         id: 'mem_round',
+        title: 'Round-trip title',
         type: 'decision',
         scope: 'project',
         status: 'active',
@@ -168,6 +171,7 @@ describe('serializeMarkdown', () => {
     const parsed = parseMarkdown(serialized)
 
     expect(parsed.metadata.id).toBe(original.metadata.id)
+    expect(parsed.metadata.title).toBe(original.metadata.title)
     expect(parsed.metadata.type).toBe(original.metadata.type)
     expect(parsed.metadata.tags).toEqual(original.metadata.tags)
     expect(parsed.metadata.supersedes).toBe(original.metadata.supersedes)

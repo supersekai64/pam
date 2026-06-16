@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { getMemoryTitle } from '@/lib/memory-view'
 import { getStatusTone } from '@/lib/status-tone'
 import { cn } from '@/lib/utils'
 import type { ApiConceptNode, Memory, MemoryMetadata, SearchResult } from '@/types'
@@ -231,7 +232,7 @@ function MemoryCard({
   selected: boolean
 }) {
   const metadata = getMetadata(memory)
-  const title = getMemoryTitle(memory.content)
+  const title = getMemoryTitle(memory)
   const visibleTags = metadata.tags.slice(0, 4)
   const hiddenTagCount = metadata.tags.length - visibleTags.length
 
@@ -341,13 +342,4 @@ function formatDate(value: string): string {
 
 function countLabel(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`
-}
-
-function getMemoryTitle(content: string): string {
-  const firstLine =
-    content
-      .split('\n')
-      .find((line) => line.trim())
-      ?.trim() ?? 'Untitled memory'
-  return firstLine.length > 92 ? `${firstLine.slice(0, 89)}...` : firstLine
 }

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { initProjectMemory, saveAutoCaptureConfig } from 'pamh-core'
+import { initProjectMemory, listMemories, saveAutoCaptureConfig } from 'pamh-core'
 import {
   addMemory,
   compileMemoryContext,
@@ -49,11 +49,13 @@ describe('MCP tools', () => {
     const edited = await editMemory(
       {
         id: created.metadata.id,
+        title: 'Local memory index',
         content: 'Use SQLite for the local memory index',
         tags: ['sqlite'],
       },
       context
     )
+    expect(edited?.metadata.title).toBe('Local memory index')
     expect(edited?.content).toBe('Use SQLite for the local memory index')
 
     const results = await searchMemory({ query: 'SQLite' }, context)
@@ -80,6 +82,31 @@ describe('MCP tools', () => {
     const compiled = await compileMemoryContext({ query: 'architecture' }, context)
     expect(compiled.content).toContain('Compiled Context')
     expect(compiled.content).toContain('Project architecture uses TypeScript packages')
+  })
+
+  it('should merge same-theme proposed memories during MCP capture', async () => {
+    const first = await addMemory(
+      {
+        content: 'Governance recommendations should be action-first for users.',
+        type: 'preference',
+        tags: ['governance', 'ui'],
+      },
+      context
+    )
+
+    const second = await addMemory(
+      {
+        content: 'Governance recommendations should explain safety before technical details.',
+        type: 'preference',
+        tags: ['governance', 'ui'],
+      },
+      context
+    )
+
+    expect(second.metadata.id).toBe(first.metadata.id)
+    expect(second.content).toContain('action-first')
+    expect(second.content).toContain('explain safety')
+    expect(await listMemories(projectMemoryPath)).toHaveLength(1)
   })
 
   it('should create proposed memories from a checkpoint in assisted mode', async () => {

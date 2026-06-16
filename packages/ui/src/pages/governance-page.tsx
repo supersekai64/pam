@@ -12,6 +12,7 @@ export function GovernancePage({
   conceptGraph,
   directory,
   includeNoise,
+  loading,
   onEvidenceSelect,
   onIncludeNoiseChange,
   onPreferContradiction,
@@ -23,6 +24,7 @@ export function GovernancePage({
     conceptGraph: ApiConceptGraph | null
     directory: Map<string, Memory | SearchResult>
     includeNoise: boolean
+    loading: boolean
     onEvidenceSelect: (id: string) => void
     onIncludeNoiseChange: (includeNoise: boolean) => void
     onPreferContradiction: (id: string, preferredId: string) => void
@@ -33,6 +35,7 @@ export function GovernancePage({
   conceptGraph: ApiConceptGraph | null
   directory: Map<string, Memory | SearchResult>
   includeNoise: boolean
+  loading: boolean
   onEvidenceSelect: (id: string) => void
   onIncludeNoiseChange: (includeNoise: boolean) => void
   onPreferContradiction: (id: string, preferredId: string) => void
@@ -45,6 +48,7 @@ export function GovernancePage({
       conceptGraph={conceptGraph}
       directory={directory}
       includeNoise={includeNoise}
+      loading={loading}
       onEvidenceSelect={onEvidenceSelect}
       onIncludeNoiseChange={onIncludeNoiseChange}
       onPreferContradiction={onPreferContradiction}

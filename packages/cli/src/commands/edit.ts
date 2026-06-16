@@ -6,6 +6,7 @@ export function registerEditCommand(program: Command) {
     .command('edit <id>')
     .description('Edit a memory')
     .option('-c, --content <content>', 'New content')
+    .option('--title <title>', 'New short display title')
     .option('-t, --type <type>', `New type (${MEMORY_TYPES.join(', ')})`)
     .option('--tags <tags>', 'New comma-separated tags')
     .action(async (id, options) => {
@@ -20,6 +21,7 @@ export function registerEditCommand(program: Command) {
 
       const memory = await updateMemory(basePath, id, {
         content: options.content,
+        title: options.title,
         type: options.type,
         tags,
       })

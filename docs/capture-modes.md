@@ -46,6 +46,9 @@ memory add -t decision -c "Use PostgreSQL for the main database"
 ## Assisted Mode (Default)
 
 In assisted mode, when an agent calls `add_memory`, the memory is created with `status: proposed`. You must review and approve it before it becomes active.
+Before creating a new proposal, PAMH checks for same-theme memories. Proposed
+matches are merged into one review item; active matches produce a proposed
+supersession linked to the active memory.
 
 **When to use:**
 
@@ -100,7 +103,7 @@ This inference is intentionally narrow:
 
 ## Auto Mode
 
-In auto mode, the agent creates memories directly with `status: active` based on configured rules.
+In auto mode, the agent creates memories directly with `status: active` based on configured rules. High-confidence same-theme matches can supersede active memories directly while preserving the archived previous version.
 
 **When to use:**
 

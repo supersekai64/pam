@@ -1,7 +1,7 @@
 import {
   MemoryIndex,
   compileContext,
-  createMemory,
+  createIntelligentMemory,
   deleteMemory,
   getProjectMemoryPath,
   indexAllMemories,
@@ -21,6 +21,7 @@ import {
   buildKnowledgeGraph,
   generateRecommendations,
   applyRecommendation,
+  splitMemorySignals,
   type MemoryStatus,
   type Memory,
   type DecayConfig,
@@ -45,6 +46,7 @@ export interface GetMemoryInput {
 
 export interface AddMemoryInput {
   content: string
+  title?: string
   type: string
   tags?: string[]
   status?: MemoryStatus
@@ -67,6 +69,7 @@ export interface MemoryCheckpointInput {
 export interface EditMemoryInput {
   id: string
   content?: string
+  title?: string
   type?: string
   tags?: string[]
 }
@@ -126,15 +129,22 @@ export async function addMemory(input: AddMemoryInput, context: McpToolContext) 
     status = 'proposed'
   }
 
-  return createMemory(basePath, {
-    content: input.content,
-    type: assertMemoryType(input.type),
-    scope: 'project',
-    tags: input.tags ?? [],
-    source: 'mcp',
-    status,
-    salience: input.salience ?? 0.5,
-  })
+  const result = await createIntelligentMemory(
+    basePath,
+    {
+      content: input.content,
+      title: input.title,
+      type: assertMemoryType(input.type),
+      scope: 'project',
+      tags: input.tags ?? [],
+      source: 'mcp',
+      status,
+      salience: input.salience ?? 0.5,
+    },
+    { autoSupersedeActive: status === 'active' }
+  )
+
+  return result.memory
 }
 
 export async function memoryCheckpoint(input: MemoryCheckpointInput, context: McpToolContext) {
@@ -166,16 +176,23 @@ export async function memoryCheckpoint(input: MemoryCheckpointInput, context: Mc
       status: 'skipped',
       reason: 'capture mode is manual',
       created: [],
+      consolidation: [],
     }
   }
 
   const status: MemoryStatus = config.mode === 'auto' ? 'active' : 'proposed'
   const source = input.source ?? (input.agent ? `mcp-checkpoint:${input.agent}` : 'mcp-checkpoint')
   const created: Memory[] = []
+  const consolidation: Array<{
+    action: string
+    memory_id: string
+    matched_memory_id?: string
+  }> = []
 
   for (const item of buildCheckpointItems(input)) {
-    created.push(
-      await createMemory(basePath, {
+    const result = await createIntelligentMemory(
+      basePath,
+      {
         type: assertMemoryType(item.type),
         scope: 'project',
         content: item.content,
@@ -183,14 +200,22 @@ export async function memoryCheckpoint(input: MemoryCheckpointInput, context: Mc
         source,
         status,
         salience: item.salience,
-      })
+      },
+      { autoSupersedeActive: status === 'active' }
     )
+    created.push(result.memory)
+    consolidation.push({
+      action: result.action,
+      memory_id: result.memory.metadata.id,
+      matched_memory_id: result.matchedMemoryId,
+    })
   }
 
   return {
     mode: config.mode,
     status,
     created,
+    consolidation,
   }
 }
 
@@ -199,6 +224,7 @@ export async function editMemory(input: EditMemoryInput, context: McpToolContext
 
   return updateMemory(basePath, input.id, {
     content: input.content,
+    title: input.title,
     type: input.type ? assertMemoryType(input.type) : undefined,
     tags: input.tags,
   })
@@ -287,7 +313,9 @@ function checkpointItems(
   return (values ?? [])
     .map((content) => content.trim())
     .filter(Boolean)
-    .map((content) => ({ type, tag, content, salience }))
+    .flatMap((content) =>
+      splitMemorySignals(content).map((signal) => ({ type, tag, content: signal, salience }))
+    )
 }
 
 function buildCheckpointTags(tag: string, input: MemoryCheckpointInput): string[] {

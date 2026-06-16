@@ -71,7 +71,7 @@ The server uses the current working directory as the project root. Project memor
 
 - `search_memory` - Search project memories by text, type, and tag
 - `get_memory` - Get a memory by ID
-- `add_memory` - Add a new memory
+- `add_memory` - Add or consolidate a durable memory signal
 - `memory_checkpoint` - Submit durable session learnings as one structured checkpoint
 - `edit_memory` - Edit an existing memory
 - `delete_memory` - Logically delete a memory
@@ -89,9 +89,21 @@ The server uses the current working directory as the project root. Project memor
 - `preview_knowledge_graph` - Preview typed Knowledge Graph entities and relations
 - `apply_memory_recommendation` - Apply one reviewed recommendation by ID
 
-`add_memory` accepts `content`, `type`, optional `tags`, and `salience`. PAMH is project-only, so MCP clients do not provide a scope. Use `supersede_memory` instead of `add_memory` when a new memory replaces an existing one, so both sides of the supersession chain are maintained.
+`add_memory` accepts `content`, `type`, optional `title`, `tags`, and
+`salience`. PAMH is project-only, so MCP clients do not provide a scope. The MCP
+capture path is intelligent by default: before creating another memory, PAMH
+looks for a same-type, same-theme memory. If it finds a proposed match, it
+merges the new signal into that proposal. If it finds active guidance, assisted
+mode creates a proposed supersession linked with `supersedes` and `source_ids`;
+auto mode can supersede the active memory directly.
 
-`memory_checkpoint` is preferred for automatic capture. Agents can submit a short task summary plus decisions, facts, preferences, mistakes, and follow-up tasks. PAMH applies the configured capture mode: `manual` records an observation only, `assisted` creates proposed memories, and `auto` creates active memories.
+Use `supersede_memory` when the client already knows exactly which memory is
+being replaced. Otherwise, `add_memory` can discover the likely same-theme
+target automatically.
+
+Client AI agents can improve UI readability by generating a short `title` for a memory and passing it to `add_memory` or `edit_memory`. PAMH stores the title as reviewable Markdown metadata and falls back to the memory content when no title is present; the local server does not call a hidden model by itself.
+
+`memory_checkpoint` is preferred for automatic capture. Agents can submit a short task summary plus decisions, facts, preferences, mistakes, and follow-up tasks. PAMH applies the configured capture mode: `manual` records an observation only, `assisted` creates proposed memories, and `auto` creates active memories. Bullet-list checkpoint entries are split into separate signals when every bullet is already a standalone memory candidate, then each signal goes through the same consolidation flow as `add_memory`.
 
 The intelligence preview tools do not mutate memory. Agents should show or
 summarize the evidence first, then call `apply_memory_recommendation` only after
@@ -105,7 +117,10 @@ PAMH supports three capture modes configured in `.ai-memory/auto-capture.yaml`:
 - **assisted** (default) - Agent proposes memories, user approves
 - **auto** - Agent creates memories directly based on rules
 
-In assisted mode, when an agent calls `add_memory`, the memory is created with `status: proposed` and requires user approval via `memory approve <id>` or the UI.
+In assisted mode, when an agent calls `add_memory`, new memories are created
+with `status: proposed` and require user approval via `memory approve <id>` or
+the UI. Same-theme proposed memories are merged before review so the user sees a
+cleaner queue instead of many near-duplicates.
 
 See [docs/capture-modes.md](capture-modes.md) for detailed configuration.
 

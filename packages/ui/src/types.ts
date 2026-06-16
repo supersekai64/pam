@@ -21,6 +21,7 @@ export type MemoryAction =
 
 export interface MemoryMetadata {
   id: string
+  title?: string
   type: string
   scope: string
   status: string

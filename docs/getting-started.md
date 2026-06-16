@@ -103,6 +103,15 @@ memory review
 The smoke test creates a proposed memory. Approve it, then verify retrieval with
 the command printed by the smoke test.
 
+Treat this as the first-run proof:
+
+- `memory doctor integrations` should report every generated project file as OK.
+- `memory smoke-test agent` should create a proposed memory and print its ID.
+- `memory review` should show that proposed memory.
+- After `memory approve <id>`, the printed `memory search ...` or
+  `memory context --query ...` command should find the approved memory.
+- `memory ui --open` should show the same review queue and context preview.
+
 ## Configure Your IDE or AI Agent
 
 PAMH works best when integrated with your AI-powered development tools via MCP (Model Context Protocol).
@@ -231,6 +240,8 @@ memory init
 
 ```bash
 pnpm test
+pnpm exec playwright install chromium
+pnpm test:e2e
 pnpm lint
 pnpm format
 ```

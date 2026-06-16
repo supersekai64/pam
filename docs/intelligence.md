@@ -20,6 +20,24 @@ Important boundaries:
 - Memories are durable Markdown records.
 - Knowledge Graph relations are generated as proposed, evidence-backed edges.
 
+## Intelligent Capture
+
+The MCP capture path consolidates memory as early as possible. When `add_memory`
+or `memory_checkpoint` receives a durable signal, PAMH compares it with active
+and proposed memories of the same type and scope.
+
+- If the closest same-theme match is proposed, PAMH merges the new signal into
+  that proposal instead of creating another review item.
+- If the closest same-theme match is active, assisted mode creates a proposed
+  supersession with `supersedes` and `source_ids` so the user can review the
+  replacement.
+- In auto mode, the same high-confidence match can supersede active memory
+  directly, archiving the older version and keeping the chain inspectable.
+
+Checkpoint bullet lists are segmented only when every bullet is already a
+standalone durable signal. This keeps capture close to native LLM memory while
+preserving auditability and source evidence.
+
 ## Recommendations
 
 Generate reviewable maintenance recommendations:
@@ -55,15 +73,15 @@ Recommendation types include:
 Rejected recommendations are stored so they do not immediately reappear without
 new evidence.
 
-The UI shows each recommendation with:
+The UI presents each recommendation as a user decision first: the suggested
+action, why it matters, what will happen if accepted, and why the action is
+safe or reversible. The deterministic rule, confidence score, internal
+recommendation type, and exact evidence memories remain visible as secondary
+technical details.
 
-- the deterministic rule that produced it;
-- a confidence score derived from evidence count and recommendation type;
-- the linked evidence memories;
-- a before/after preview of the proposed action.
-
-This keeps recommendations explainable: applying one should never require
-trusting a hidden model decision.
+This keeps recommendations explainable without making the user understand the
+maintenance engine before deciding what to do. Applying one should never
+require trusting a hidden model decision.
 
 ## Cleanup
 

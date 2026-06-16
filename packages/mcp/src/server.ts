@@ -99,9 +99,10 @@ export function createPamhMcpServer(context: McpToolContext) {
     {
       title: 'Add Memory',
       description:
-        'Add a new PAMH memory. CALL THIS IMMEDIATELY whenever the user expresses a durable preference, rule ("always/never"), decision, correction, or reusable fact — do not defer to end of turn. In assisted mode the memory is created as `proposed` (cheap and reversible), so when in doubt, capture.',
+        'Add a new PAMH memory. CALL THIS IMMEDIATELY whenever the user expresses a durable preference, rule ("always/never"), decision, correction, or reusable fact — do not defer to end of turn. Client AI agents can include a concise optional title for UI labels. In assisted mode the memory is created as `proposed` (cheap and reversible), so when in doubt, capture.',
       inputSchema: {
         content: z.string(),
+        title: z.string().optional(),
         type: z.string(),
         tags: z.array(z.string()).optional(),
         salience: z.number().min(0).max(1).optional(),
@@ -149,10 +150,12 @@ export function createPamhMcpServer(context: McpToolContext) {
     'edit_memory',
     {
       title: 'Edit Memory',
-      description: 'Edit an existing PAMH memory.',
+      description:
+        'Edit an existing PAMH memory. Client AI agents can provide a concise optional title to improve UI labels while leaving the full content intact.',
       inputSchema: {
         id: z.string(),
         content: z.string().optional(),
+        title: z.string().optional(),
         type: z.string().optional(),
         tags: z.array(z.string()).optional(),
       },

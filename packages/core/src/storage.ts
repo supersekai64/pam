@@ -75,6 +75,7 @@ export async function createMemory(basePath: string, input: CreateMemoryInput): 
   const memory: Memory = {
     metadata: {
       id,
+      title: normalizeTitle(input.title),
       type,
       scope,
       status,
@@ -168,6 +169,9 @@ export async function updateMemory(
   if (input.content !== undefined) {
     memory.content = input.content
   }
+  if (input.title !== undefined) {
+    memory.metadata.title = normalizeTitle(input.title)
+  }
   if (input.tags !== undefined) {
     memory.metadata.tags = input.tags
   }
@@ -217,6 +221,11 @@ export async function updateMemory(
   })
 
   return memory
+}
+
+function normalizeTitle(title: string | undefined): string | undefined {
+  const trimmed = title?.replace(/\s+/g, ' ').trim()
+  return trimmed || undefined
 }
 
 export interface DeleteMemoryOptions {

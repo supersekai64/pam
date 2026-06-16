@@ -714,6 +714,7 @@ function parseCreateMemoryPayload(value: unknown): ValidationResult<CreateMemory
   const unknown = unknownKeys(value, [
     'type',
     'scope',
+    'title',
     'content',
     'tags',
     'source',
@@ -730,6 +731,9 @@ function parseCreateMemoryPayload(value: unknown): ValidationResult<CreateMemory
   }
   if (typeof value.content !== 'string') {
     return validationError('Field "content" must be a string.')
+  }
+  if (value.title !== undefined && typeof value.title !== 'string') {
+    return validationError('Field "title" must be a string when provided.')
   }
 
   const tags = parseOptionalStringArray(value.tags, 'tags')
@@ -756,6 +760,7 @@ function parseCreateMemoryPayload(value: unknown): ValidationResult<CreateMemory
     value: {
       type: value.type,
       scope: value.scope ?? 'project',
+      title: value.title,
       content: value.content,
       tags: tags.value,
       source: value.source,
@@ -772,6 +777,7 @@ function parseUpdateMemoryPayload(value: unknown): ValidationResult<UpdateMemory
 
   const unknown = unknownKeys(value, [
     'content',
+    'title',
     'tags',
     'type',
     'scope',
@@ -783,6 +789,9 @@ function parseUpdateMemoryPayload(value: unknown): ValidationResult<UpdateMemory
 
   if (value.content !== undefined && typeof value.content !== 'string') {
     return validationError('Field "content" must be a string when provided.')
+  }
+  if (value.title !== undefined && typeof value.title !== 'string') {
+    return validationError('Field "title" must be a string when provided.')
   }
   if (value.type !== undefined && !isMemoryType(value.type)) {
     return validationError('Field "type" must be a valid memory type when provided.')
@@ -805,6 +814,7 @@ function parseUpdateMemoryPayload(value: unknown): ValidationResult<UpdateMemory
 
   const update: UpdateMemoryInput = {
     content: value.content,
+    title: value.title,
     tags: tags.value,
     type: value.type,
     scope: value.scope,

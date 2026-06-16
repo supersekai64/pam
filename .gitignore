@@ -9,6 +9,8 @@ secrets/
 *.log
 .DS_Store
 coverage/
+playwright-report/
+test-results/
 .turbo/
 .ai-memory
 .codex

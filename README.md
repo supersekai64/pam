@@ -121,15 +121,25 @@ memory review
 creates a proposed test memory, and `review` shows proposals waiting for
 approval.
 
+First-run success looks like this: `doctor integrations` reports OK, the smoke
+test prints a proposed memory ID, `memory review` shows that proposal, and after
+approval the printed `memory search ...` or `memory context --query ...` command
+can find it again.
+
 ### 4. Work with your AI agent (assisted capture)
 
 By default, PAMH uses **assisted mode**: an integrated agent proposes memories
 through PAMH tools or hooks, and you approve or reject them.
 
+MCP capture is intelligent by default. When an agent saves a durable signal,
+PAMH looks for same-theme memories first: proposed duplicates are merged, active
+memories get a proposed supersession, and auto mode can supersede directly while
+preserving evidence links.
+
 **Workflow:**
 
 1. Work normally with your AI agent (Cursor, Copilot, Claude Code, etc.)
-2. The agent proposes memories when it learns something important
+2. The agent proposes or consolidates memories when it learns something important
 3. Review proposals with `memory review`, `memory ui`, or `memory list --status proposed`
 4. Approve with `memory approve <id>` or reject with `memory reject <id>`
 
@@ -215,6 +225,8 @@ memory init
 - MCP stdio server
 - Local web UI via `memory ui`
 - Three capture modes: manual, assisted (default), and auto
+- Intelligent MCP capture that merges same-theme proposed memories and preserves
+  source links when replacing active guidance
 - Assisted intelligence: recommendations, cleanup, distillation, and Knowledge Graph previews
 
 ## Documentation
@@ -274,6 +286,8 @@ See [docs/concepts.md](docs/concepts.md#semantic-search) for details.
 ```bash
 pnpm build
 pnpm test
+pnpm exec playwright install chromium # once, before browser E2E tests
+pnpm test:e2e
 pnpm lint
 pnpm format
 pnpm release:check

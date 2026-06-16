@@ -472,14 +472,14 @@ export async function buildKnowledgeGraph(basePath: string): Promise<KnowledgeGr
   for (const memory of memories) {
     const memoryEntity = addEntity(entities, {
       id: `memory:${memory.metadata.id}`,
-      label: memory.metadata.id,
+      label: titleFromMemory(memory),
       type: 'memory',
       evidence_ids: [memory.metadata.id],
     })
 
     const typedEntity = addEntity(entities, {
       id: `${memory.metadata.type}:${memory.metadata.id}`,
-      label: titleFromContent(memory.content),
+      label: titleFromMemory(memory),
       type: entityTypeForMemory(memory.metadata.type),
       evidence_ids: [memory.metadata.id],
     })
@@ -1121,6 +1121,10 @@ function slug(value: string): string {
 
 function titleFromContent(content: string): string {
   return truncate(content.replace(/\s+/g, ' ').trim() || 'Untitled memory', 72)
+}
+
+function titleFromMemory(memory: Memory): string {
+  return memory.metadata.title ?? titleFromContent(memory.content)
 }
 
 function truncate(value: string, limit: number): string {

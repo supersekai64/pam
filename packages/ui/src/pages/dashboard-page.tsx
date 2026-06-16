@@ -1,19 +1,22 @@
 import { ClipboardCheck, FileText, PlugZap, SearchCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
 
+import { ContextPreviewPanel } from '@/components/context-preview-panel'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import type { ApiConceptGraph, StatsResponse } from '@/types'
+import type { ApiConceptGraph, ContextPreview, StatsResponse } from '@/types'
 
 export function DashboardPage({
   conceptGraph,
+  contextPreview,
   memoryTotal,
   onContextOpen,
   onEvidenceOpen,
   statsResponse,
 }: {
   conceptGraph: ApiConceptGraph | null
+  contextPreview: ContextPreview | null
   memoryTotal: number
   onContextOpen: () => void
   onEvidenceOpen: () => void
@@ -101,6 +104,8 @@ export function DashboardPage({
         </Hint>
         <div aria-hidden="true" className="rounded-md border border-border bg-card" />
       </section>
+
+      <ContextPreviewPanel contextPreview={contextPreview} onOpen={onContextOpen} />
     </section>
   )
 }

@@ -7,6 +7,7 @@ export function registerAddCommand(program: Command) {
     .description('Add a new memory')
     .requiredOption('-t, --type <type>', `Memory type (${MEMORY_TYPES.join(', ')})`)
     .requiredOption('-c, --content <content>', 'Memory content')
+    .option('--title <title>', 'Short display title')
     .option('--tags <tags>', 'Comma-separated tags')
     .option('--salience <score>', 'Importance score (0-1, default: 0.5)', '0.5')
     .action(async (options) => {
@@ -29,6 +30,7 @@ export function registerAddCommand(program: Command) {
       const memory = await createMemory(basePath, {
         type: options.type,
         scope: 'project',
+        title: options.title,
         content: options.content,
         tags,
         salience,

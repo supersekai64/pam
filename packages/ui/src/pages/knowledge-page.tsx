@@ -1,20 +1,36 @@
-import type { ReactNode } from 'react'
-import type { KnowledgeGraphResponse, Memory, SearchResult } from '@/types'
+import type { FormEvent, ReactNode } from 'react'
+import type { KnowledgeGraphResponse, Memory, MemoryAction, SearchResult } from '@/types'
 
 export function KnowledgePage({
   KnowledgeGraphPanel,
   directory,
   graph,
-  onEvidence,
+  loading,
+  onEvidenceAction,
+  onEvidenceUpdate,
 }: {
   KnowledgeGraphPanel: (props: {
     directory: Map<string, Memory | SearchResult>
     graph: KnowledgeGraphResponse | null
-    onEvidence: (id: string) => void
+    loading: boolean
+    onEvidenceAction: (memory: Memory | SearchResult, action: MemoryAction) => void
+    onEvidenceUpdate: (memory: Memory | SearchResult, event: FormEvent<HTMLFormElement>) => void
   }) => ReactNode
   directory: Map<string, Memory | SearchResult>
   graph: KnowledgeGraphResponse | null
-  onEvidence: (id: string) => void
+  loading: boolean
+  onEvidenceAction: (memory: Memory | SearchResult, action: MemoryAction) => void
+  onEvidenceUpdate: (memory: Memory | SearchResult, event: FormEvent<HTMLFormElement>) => void
 }) {
-  return <KnowledgeGraphPanel directory={directory} graph={graph} onEvidence={onEvidence} />
+  return (
+    <div className="h-full min-h-0">
+      <KnowledgeGraphPanel
+        directory={directory}
+        graph={graph}
+        loading={loading}
+        onEvidenceAction={onEvidenceAction}
+        onEvidenceUpdate={onEvidenceUpdate}
+      />
+    </div>
+  )
 }

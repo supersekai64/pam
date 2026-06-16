@@ -5,6 +5,7 @@ import type { Memory } from './types.js'
 
 interface DbMemoryRow {
   id: string
+  title: string | null
   type: string
   scope: string
   status: string
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS memories (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   source TEXT NOT NULL,
+  title TEXT,
   content TEXT NOT NULL,
   file_path TEXT NOT NULL
 );
@@ -91,7 +93,15 @@ export class MemoryIndex {
 
   private initialize() {
     this.db.exec(SCHEMA)
+    this.ensureColumn('memories', 'title', 'TEXT')
     this.db.exec(FTS_SCHEMA)
+  }
+
+  private ensureColumn(table: string, column: string, definition: string) {
+    const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+    if (!columns.some((item) => item.name === column)) {
+      this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+    }
   }
 
   clear() {
@@ -107,12 +117,12 @@ export class MemoryIndex {
   }
 
   indexMemory(memory: Memory, filePath: string) {
-    const { id, type, scope, status, created_at, updated_at, source, tags } = memory.metadata
+    const { id, title, type, scope, status, created_at, updated_at, source, tags } = memory.metadata
     const { content } = memory
 
     const insertMemory = this.db.prepare(`
-      INSERT OR REPLACE INTO memories (id, type, scope, status, created_at, updated_at, source, content, file_path)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO memories (id, title, type, scope, status, created_at, updated_at, source, content, file_path)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
     const deleteTags = this.db.prepare('DELETE FROM tags WHERE memory_id = ?')
@@ -124,7 +134,18 @@ export class MemoryIndex {
     )
 
     const transaction = this.db.transaction(() => {
-      insertMemory.run(id, type, scope, status, created_at, updated_at, source, content, filePath)
+      insertMemory.run(
+        id,
+        title ?? null,
+        type,
+        scope,
+        status,
+        created_at,
+        updated_at,
+        source,
+        content,
+        filePath
+      )
 
       deleteTags.run(id)
       for (const tag of tags) {
@@ -242,6 +263,7 @@ export class MemoryIndex {
 
     return rows.map((row) => ({
       id: row.id,
+      title: row.title ?? undefined,
       type: row.type,
       scope: row.scope,
       status: row.status,
@@ -292,6 +314,7 @@ export class MemoryIndex {
 
     return rows.map((row) => ({
       id: row.id,
+      title: row.title ?? undefined,
       type: row.type,
       scope: row.scope,
       status: row.status,
@@ -374,6 +397,7 @@ export class MemoryIndex {
 
     return {
       id: row.id,
+      title: row.title ?? undefined,
       type: row.type,
       scope: row.scope,
       status: row.status,
@@ -401,6 +425,7 @@ export class MemoryIndex {
 
     return rows.map((row) => ({
       id: row.id,
+      title: row.title ?? undefined,
       type: row.type,
       scope: row.scope,
       status: row.status,
@@ -429,6 +454,7 @@ export interface SearchOptions {
 
 export interface SearchResult {
   id: string
+  title?: string
   type: string
   scope: string
   status: string

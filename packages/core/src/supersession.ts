@@ -46,6 +46,7 @@ export async function supersedeMemory(
   const newMemory: Memory = {
     metadata: {
       id: newId,
+      title: newInput.title,
       type,
       scope,
       status,
