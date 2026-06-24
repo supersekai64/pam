@@ -825,7 +825,11 @@ function formatContextPreviewSummary(contextPreview: ContextPreview | null): str
   if (!contextPreview) return 'Ranked subset selected from active project memory'
 
   const selectedSources = formatCount(contextPreview.memoryCount, 'selected prompt source')
-  const activeMemories = formatCount(contextPreview.activeMemoryCount, 'active memory')
+  const activeMemories = formatCount(
+    contextPreview.activeMemoryCount,
+    'active memory',
+    'active memories'
+  )
   const tokenEstimate = contextPreview.tokenEstimate.toLocaleString()
 
   return `${selectedSources} from ${activeMemories}, about ${tokenEstimate} tokens`
@@ -845,8 +849,8 @@ function formatConceptGraphSummary(
   return `${concepts} and ${links} from ${selectedSources}`
 }
 
-function formatCount(count: number, singular: string): string {
-  return `${count.toLocaleString()} ${singular}${count === 1 ? '' : 's'}`
+function formatCount(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count.toLocaleString()} ${count === 1 ? singular : plural}`
 }
 
 function SettingsPage({
