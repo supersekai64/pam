@@ -162,14 +162,14 @@ export function DataTable({
 
       <div className="min-w-0 overflow-hidden rounded-lg border bg-card">
         <Table>
-          <TableHeader className="bg-muted/40">
+          <TableHeader className="bg-muted/40 text-sm">
             <TableRow>
-              <TableHead className="w-[42%]">Memory</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="hidden lg:table-cell">Updated</TableHead>
-              <TableHead className="hidden xl:table-cell">Source</TableHead>
-              <TableHead className="w-10">
+              <TableHead className="w-[42%] text-sm">Memory</TableHead>
+              <TableHead className="text-sm">Type</TableHead>
+              <TableHead className="text-sm">Status</TableHead>
+              <TableHead className="hidden text-sm lg:table-cell">Updated</TableHead>
+              <TableHead className="hidden text-sm xl:table-cell">Source</TableHead>
+              <TableHead className="w-10 text-sm">
                 <span className="sr-only">Actions</span>
               </TableHead>
             </TableRow>
@@ -245,7 +245,7 @@ export function DataTable({
 
         {!isLoading && filteredData.length > 0 && (
           <div className="flex flex-col gap-3 border-t px-3 py-2 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
-            <div className="text-xs tabular-nums">
+            <div className="text-sm tabular-nums">
               Showing {startIndex + 1}-{endIndex} of {filteredData.length.toLocaleString()}
               {!query.trim() && totalMatching > data.length
                 ? ` loaded, ${totalMatching.toLocaleString()} matching`
@@ -253,12 +253,12 @@ export function DataTable({
             </div>
 
             {hasPagination && (
-              <Pagination className="mx-0 w-auto justify-start md:justify-end">
-                <PaginationContent>
+              <Pagination className="mx-0 w-auto justify-start text-sm md:justify-end">
+                <PaginationContent className="text-sm">
                   <PaginationItem>
                     <PaginationPrevious
                       aria-disabled={safePage === 1}
-                      className={cn(safePage === 1 && 'pointer-events-none opacity-50')}
+                      className={cn('text-sm', safePage === 1 && 'pointer-events-none opacity-50')}
                       href="#"
                       onClick={(event) => {
                         event.preventDefault()
@@ -275,6 +275,7 @@ export function DataTable({
                         <PaginationLink
                           href="#"
                           isActive={item === safePage}
+                          className="text-sm"
                           onClick={(event) => {
                             event.preventDefault()
                             goToPage(item)
@@ -289,7 +290,10 @@ export function DataTable({
                   <PaginationItem>
                     <PaginationNext
                       aria-disabled={safePage === pageCount}
-                      className={cn(safePage === pageCount && 'pointer-events-none opacity-50')}
+                      className={cn(
+                        'text-sm',
+                        safePage === pageCount && 'pointer-events-none opacity-50'
+                      )}
                       href="#"
                       onClick={(event) => {
                         event.preventDefault()
