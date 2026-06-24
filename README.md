@@ -45,8 +45,11 @@ versions of the core, API, protocol, and UI packages.
 If npm does not show progress during the first install, run:
 
 ```bash
-npm install -g @helloworlkd/pam-cli --loglevel=info
+npm install -g @helloworlkd/pam-cli --loglevel=info --foreground-scripts --timing
 ```
+
+This makes npm print package downloads, native install scripts, and timing
+information instead of leaving the terminal apparently idle.
 
 For future global updates, prefer:
 
