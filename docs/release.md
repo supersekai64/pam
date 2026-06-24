@@ -1,17 +1,30 @@
 # Release
 
-Use GitHub Actions Trusted Publishing for npm releases. This avoids local 2FA prompts and avoids storing an npm token.
+Use GitHub Actions for npm releases. The first publication of each package needs
+an npm automation token because npm trusted publishing can only be configured
+after the package exists. After the first publish, configure trusted publishing
+and remove the token dependency from the workflow.
 
 ## One-time npm setup
 
-For each published package (`@supersekai64/pam-core`, `@supersekai64/pam-ui`, `@supersekai64/pam-api`, `@supersekai64/pam-protocol`, `@supersekai64/pam-cli`), open the package settings on npm and add this trusted publisher:
+Before the first publish, create a GitHub Actions secret named `NPM_TOKEN` with
+an npm token that can publish public packages under the `@supersekai64` scope.
+The token owner must have publish rights for that npm user or organization
+scope.
+
+After each package exists on npm, open the package settings for
+`@supersekai64/pam-core`, `@supersekai64/pam-ui`, `@supersekai64/pam-api`,
+`@supersekai64/pam-protocol`, and `@supersekai64/pam-cli`, then add this trusted
+publisher:
 
 - Publisher: GitHub Actions
 - Repository: `supersekai64/pam`
 - Workflow: `npm-publish.yml`
 - Environment: leave empty
 
-Keep package publishing access set to allow 2FA or trusted publishing.
+Keep package publishing access set to allow 2FA or trusted publishing. Once all
+packages trust the workflow, `NPM_TOKEN` can be removed from the repository
+secrets and from the workflow.
 
 ## Publish
 

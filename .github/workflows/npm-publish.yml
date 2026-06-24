@@ -48,7 +48,24 @@ jobs:
       - name: Verify release
         run: pnpm release:check
 
+      - name: Verify npm token for first publish
+        if: ${{ !inputs.dry_run }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${NODE_AUTH_TOKEN:-}" ]]; then
+            echo "::error::NPM_TOKEN is required until all packages have been published once and trusted publishing is configured on npm."
+            exit 1
+          fi
+
+          npm whoami
+
       - name: Publish packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
