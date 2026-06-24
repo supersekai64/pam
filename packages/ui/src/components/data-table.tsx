@@ -5,8 +5,6 @@ import {
   IconArchive,
   IconCheck,
   IconDotsVertical,
-  IconHistory,
-  IconInbox,
   IconRestore,
   IconSearch,
   IconTrash,
@@ -550,21 +548,36 @@ function Detail({ label, value, tooltip }: { label: string; value: string; toolt
 
 function StatusBadge({ status }: { status: MemoryStatus }) {
   const config = {
-    active: { icon: IconCheck, label: 'active', className: 'text-emerald-500' },
-    proposed: { icon: IconInbox, label: 'proposed', className: 'text-sky-500' },
-    archived: { icon: IconArchive, label: 'archived', className: 'text-muted-foreground' },
-    deleted: { icon: IconTrash, label: 'deleted', className: 'text-destructive' },
-    noise: { icon: IconHistory, label: 'noise', className: 'text-muted-foreground' },
-  } satisfies Record<
-    MemoryStatus,
-    { icon: React.ComponentType<{ className?: string }>; label: string; className: string }
-  >
+    active: {
+      label: 'active',
+      className:
+        'border-transparent bg-green-500/10 text-green-500 hover:bg-green-500/10 dark:bg-green-500/20 dark:hover:bg-green-500/20',
+    },
+    proposed: {
+      label: 'proposed',
+      className:
+        'border-transparent bg-sky-500/10 text-sky-500 hover:bg-sky-500/10 dark:bg-sky-500/20 dark:hover:bg-sky-500/20',
+    },
+    archived: {
+      label: 'archived',
+      className:
+        'border-transparent bg-purple-500/10 text-purple-500 hover:bg-purple-500/10 dark:bg-purple-500/20 dark:hover:bg-purple-500/20',
+    },
+    deleted: {
+      label: 'deleted',
+      className:
+        'border-transparent bg-red-500/10 text-red-500 hover:bg-red-500/10 dark:bg-red-500/20 dark:hover:bg-red-500/20',
+    },
+    noise: {
+      label: 'noise',
+      className:
+        'border-transparent bg-blue-500/10 text-blue-500 hover:bg-blue-500/10 dark:bg-blue-500/20 dark:hover:bg-blue-500/20',
+    },
+  } satisfies Record<MemoryStatus, { label: string; className: string }>
   const item = config[status]
-  const Icon = item.icon
 
   return (
-    <Badge variant="outline" className="gap-1.5">
-      <Icon className={cn('size-3.5', item.className)} />
+    <Badge variant="outline" className={cn('px-2.5', item.className)}>
       {item.label}
     </Badge>
   )
