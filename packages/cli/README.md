@@ -12,14 +12,14 @@ npm install -g @helloworlkd/pam-cli
 
 This installs the `pam` command.
 
-For future global updates, prefer:
+For future global updates, stop any running `pam ui` or `pam server start`
+processes, then run:
 
 ```bash
-pam upgrade
+npm install -g @helloworlkd/pam-cli@latest
 ```
 
-This stops running PAM UI/MCP services before invoking npm, which avoids
-Windows native-file locks during updates.
+Stopping PAM services first avoids Windows native-file locks during updates.
 
 For automatic project bootstrap:
 

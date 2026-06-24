@@ -51,15 +51,15 @@ npm install -g @helloworlkd/pam-cli --loglevel=info --foreground-scripts --timin
 This makes npm print package downloads, native install scripts, and timing
 information instead of leaving the terminal apparently idle.
 
-For future global updates, prefer:
+For future global updates, stop any running `pam ui` or `pam server start`
+processes, then run npm directly:
 
 ```bash
-pam upgrade
+npm install -g @helloworlkd/pam-cli@latest
 ```
 
-`pam upgrade` stops running PAM UI/MCP services before invoking npm. This avoids
-native SQLite file locks, especially on Windows when `pam ui` or
-`pam server start` is still running.
+Stopping PAM services first avoids native SQLite file locks, especially on
+Windows.
 
 ### Project-Local CLI
 
@@ -130,7 +130,6 @@ See [docs/mcp.md](docs/mcp.md) for client-specific examples.
 | Check setup health        | `pam doctor integrations`                                       |
 | Export memory             | `pam export backup.zip`                                         |
 | Import memory             | `pam import backup.json`                                        |
-| Update global install     | `pam upgrade`                                                   |
 
 See [docs/cli.md](docs/cli.md) for the full command reference.
 
@@ -151,6 +150,20 @@ theme compilations are derived indexes that can be rebuilt.
 
 PAM only records what its CLI, MCP tools, API, UI, or generated hooks send to
 it. It does not silently read arbitrary conversations.
+
+## How Search Works
+
+`pam search` and the MCP `search_memory` tool use hybrid retrieval by default:
+
+1. Exact SQLite FTS5 search first, for fast precise matches.
+2. Related lexical search when exact terms miss, using tags and built-in synonyms.
+3. Semantic vector search when lexical results are weak, missing, or the query is
+   vague.
+4. Fusion and reranking when both lexical and semantic signals are useful.
+
+The source of truth is still the Markdown files in `.ai-memory/`. `memory.db`
+contains rebuildable SQLite, FTS, theme, and vector indexes. `compiled-context.md`
+is a generated LLM context document, not the canonical memory store.
 
 ## Capture Modes
 
@@ -215,7 +228,7 @@ console.log(api.url)
 
 - Local Markdown memory store in `.ai-memory/`
 - SQLite and FTS5 indexes
-- Text, tag, metadata, and semantic search
+- Hybrid text, tag, metadata, and semantic vector search
 - Built-in local hash embeddings with optional local model or OpenAI embeddings
 - MCP stdio server for AI agents and IDEs
 - Local web UI through `pam ui`

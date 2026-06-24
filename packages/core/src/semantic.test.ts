@@ -101,6 +101,26 @@ describe('semantic', () => {
       index.close()
     }, 30000)
 
+    it('should reindex a memory when content changes', async () => {
+      const memory = await createMemory(basePath, {
+        type: 'knowledge',
+        scope: 'project',
+        content: 'Python is a high-level programming language',
+      })
+
+      const index = new SemanticIndex(basePath, new TestEmbeddingProvider())
+      await index.indexMemory(memory.metadata.id, memory.content)
+
+      await expect(
+        index.indexMemory(memory.metadata.id, 'TypeScript is a typed superset of JavaScript')
+      ).resolves.toBeUndefined()
+
+      const results = await index.search('JavaScript programming', 10)
+      expect(results.filter((result) => result.id === memory.metadata.id)).toHaveLength(1)
+
+      index.close()
+    }, 30000)
+
     it('should handle multiple memories', async () => {
       const memories = []
       const contents = [

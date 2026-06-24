@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -10,6 +11,13 @@ import {
   type DistillationProposal,
 } from '../../core/src/index.js'
 import { createLocalApiServer, type LocalApiServerOptions } from './server.js'
+
+function readPackageVersion(packageJsonPath: string): string {
+  const manifest = JSON.parse(readFileSync(join(process.cwd(), packageJsonPath), 'utf-8')) as {
+    version: string
+  }
+  return manifest.version
+}
 
 describe('local API concepts', () => {
   let tempDir: string
@@ -514,19 +522,19 @@ describe('local API concepts', () => {
   })
 
   it('reports package versions and available npm updates', async () => {
+    const latestVersions: Record<string, string> = {
+      '@helloworlkd/pam-core': readPackageVersion('packages/core/package.json'),
+      '@helloworlkd/pam-protocol': readPackageVersion('packages/mcp/package.json'),
+      '@helloworlkd/pam-ui': readPackageVersion('packages/ui/package.json'),
+      '@helloworlkd/pam-api': readPackageVersion('packages/api/package.json'),
+      '@helloworlkd/pam-cli': readPackageVersion('packages/cli/package.json'),
+    }
     const originalFetch = globalThis.fetch
     globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
       const url =
         typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
       if (url.startsWith('https://registry.npmjs.org/')) {
         const packageName = decodeURIComponent(url.split('/').at(-2) ?? '')
-        const latestVersions: Record<string, string> = {
-          '@helloworlkd/pam-core': '0.1.10',
-          '@helloworlkd/pam-protocol': '0.1.10',
-          '@helloworlkd/pam-ui': '1.0.0',
-          '@helloworlkd/pam-api': '0.1.17',
-          '@helloworlkd/pam-cli': '0.1.19',
-        }
 
         return new Response(
           JSON.stringify({
@@ -549,8 +557,8 @@ describe('local API concepts', () => {
 
       expect(versions.updateCount).toBe(0)
       expect(cli).toMatchObject({
-        currentVersion: '0.1.19',
-        latestVersion: '0.1.19',
+        currentVersion: latestVersions['@helloworlkd/pam-cli'],
+        latestVersion: latestVersions['@helloworlkd/pam-cli'],
         status: 'up-to-date',
       })
       expect(versions.packages.map((item) => item.name)).toEqual([

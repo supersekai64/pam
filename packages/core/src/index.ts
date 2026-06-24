@@ -91,8 +91,17 @@ export {
   SemanticIndex,
   autoIndexSemanticMemory,
   removeSemanticMemory,
+  semanticMemoryText,
   type SemanticSearchResult,
 } from './semantic.js'
+export {
+  hybridSearchMemories,
+  isVagueMemoryQuery,
+  type HybridSearchMatch,
+  type HybridSearchOptions,
+  type HybridSearchResult,
+  type HybridSearchSource,
+} from './hybrid-search.js'
 export {
   formatMemoryTheme,
   inferMemoryTheme,

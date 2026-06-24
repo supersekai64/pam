@@ -67,11 +67,19 @@ Static local web UI served by the local API server. It does not own data or cont
 
 ## Search
 
-- Text search (FTS5)
-- Tag search
-- Metadata search
-- Semantic search (sqlite-vec)
-- Theme-filtered search and compiled theme context
+Search is implemented in core and shared by the CLI and MCP server.
+
+Default retrieval is hybrid:
+
+1. Exact text search through SQLite FTS5.
+2. Tag, metadata, and theme filters applied to lexical results.
+3. Related lexical expansion when exact terms miss.
+4. Semantic fallback through `sqlite-vec` when lexical coverage is weak.
+5. Fusion/reranking when broad queries benefit from both lexical and semantic
+   signals.
+
+Markdown remains the source of truth. `memory.db`, FTS5 tables, semantic vectors,
+and `theme_compilations` are rebuildable derived indexes.
 
 ## Lifecycle
 
@@ -102,6 +110,10 @@ Search Results
       =
 Compiled Context
 ```
+
+Compiled context is an output artifact for LLM prompts. It is generated from
+theme compilations, selected Markdown memories, and search results; it is not
+the source queried by default search.
 
 ## Intelligence Layer
 

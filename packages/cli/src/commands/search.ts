@@ -1,11 +1,11 @@
 import { Command } from 'commander'
 import {
-  MemoryIndex,
   SemanticIndex,
   getProjectMemoryPath,
-  indexAllMemories,
+  hybridSearchMemories,
   listMemories,
   readMemory,
+  semanticMemoryText,
 } from '@helloworlkd/pam-core'
 
 export function registerSearchCommand(program: Command) {
@@ -35,7 +35,7 @@ export function registerSearchCommand(program: Command) {
           )
 
           for (const memory of memories) {
-            await semanticIndex.indexMemory(memory.metadata.id, memory.content)
+            await semanticIndex.indexMemory(memory.metadata.id, semanticMemoryText(memory))
           }
 
           const semanticResults = await semanticIndex.search(query, limit)
@@ -75,41 +75,31 @@ export function registerSearchCommand(program: Command) {
         return
       }
 
-      await indexAllMemories(basePath)
-      const index = new MemoryIndex(basePath)
-
-      let usedNaturalFallback = false
-      let results = index.search({
+      const results = await hybridSearchMemories(basePath, {
         query,
         type: options.type,
         tag: options.tag,
         limit,
-        natural: false,
       })
-
-      if (query && results.length === 0) {
-        results = index.search({
-          query,
-          type: options.type,
-          tag: options.tag,
-          limit,
-          natural: true,
-        })
-        usedNaturalFallback = results.length > 0
-      }
-
-      index.close()
 
       if (results.length === 0) {
         console.log(
           query
-            ? 'No memories found. Try --semantic for embedding search if lexical matching is too narrow.'
+            ? 'No memories found. Try broader words or --semantic for embedding-only diagnostics.'
             : 'No memories found'
         )
         return
       }
 
-      if (usedNaturalFallback) {
+      const usedExact = results.some((result) => result.match.sources.includes('lexical-exact'))
+      const usedNatural = results.some((result) => result.match.sources.includes('lexical-natural'))
+      const usedSemantic = results.some((result) => result.match.sources.includes('semantic'))
+
+      if (usedSemantic && (usedExact || usedNatural)) {
+        console.log('Showing hybrid lexical and semantic matches.\n')
+      } else if (usedSemantic) {
+        console.log('No strong lexical hits; showing semantic matches.\n')
+      } else if (usedNatural && !usedExact) {
         console.log('No exact lexical hits; showing related matches from tags and synonyms.\n')
       }
 

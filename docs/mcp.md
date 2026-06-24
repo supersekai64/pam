@@ -81,7 +81,7 @@ The server uses the current working directory as the project root. Project memor
 
 ## Available Tools
 
-- `search_memory` - Search project memories by text, type, and tag
+- `search_memory` - Hybrid search across project memories by text, type, tag, and theme
 - `get_memory` - Get a memory by ID
 - `add_memory` - Add or consolidate a durable memory signal
 - `memory_checkpoint` - Submit durable session learnings as one structured checkpoint
@@ -100,6 +100,13 @@ The server uses the current working directory as the project root. Project memor
 - `preview_memory_distillation` - Preview synthetic memory proposals without creating them
 - `preview_knowledge_graph` - Preview typed Knowledge Graph entities and relations
 - `apply_memory_recommendation` - Apply one reviewed recommendation by ID
+
+`search_memory` uses the same retrieval stack as `pam search`: exact SQLite FTS5
+first, related lexical search when exact terms miss, semantic vector fallback
+when lexical results are weak, and fusion/reranking when the query is broad or
+question-like. Returned items include the regular memory fields plus match
+metadata such as `match.sources`, which can contain `lexical-exact`,
+`lexical-natural`, or `semantic`.
 
 `add_memory` accepts `content`, `type`, optional `title`, `tags`, `concepts`,
 and `salience`. `concepts` are client-provided canonical semantic themes used

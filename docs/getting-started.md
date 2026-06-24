@@ -25,10 +25,11 @@ progress.
 On Windows, stop any running PAM UI or MCP server before updating the global
 package. Native SQLite files can stay locked while `pam ui` or
 `pam server start` is running, which makes npm fail with `EBUSY`.
-After PAM is installed, prefer `pam upgrade` for future global updates; it
-stops running PAM UI/MCP services before invoking npm. The command prints a
-status file, log file, and a platform-specific follow command so you can watch
-upgrade progress while the updater runs in the background.
+Then update the global package directly through npm:
+
+```bash
+npm install -g @helloworlkd/pam-cli@latest
+```
 
 For a project-local install that bootstraps PAM automatically:
 

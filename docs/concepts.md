@@ -37,6 +37,20 @@ Markdown is always the source of truth for raw and durable memory records. SQLit
 
 If an index is corrupted or missing, it can be rebuilt from Markdown files.
 
+When PAM answers a search request, it does not read `compiled-context.md` first.
+The normal path is:
+
+1. Read Markdown memories as the canonical records.
+2. Rebuild or refresh `memory.db` from Markdown when needed.
+3. Query SQLite FTS5 for exact lexical matches.
+4. Use the vector index in `memory.db` as fallback or fusion for vague queries.
+5. Build LLM context only when a command or MCP client explicitly asks for
+   compiled context.
+
+`compiled-context.md` is a generated prompt artifact for LLM consumption. It is
+useful when a model needs a compact briefing, but it is not the canonical memory
+store and it is not the first lookup layer for search.
+
 ## Memory Themes
 
 Every memory is assigned a broad theme. The theme is stored in Markdown
@@ -200,6 +214,22 @@ vectorized automatically by default.
 Text search works out of the box. Semantic search uses deterministic local hash
 embeddings by default and can be upgraded to either the optional local embedding
 package or OpenAI embeddings.
+
+### Hybrid Retrieval
+
+`pam search` and MCP `search_memory` use hybrid retrieval by default:
+
+1. Exact FTS5 first, because exact project terms, IDs, file names, and package
+   names should be fast and predictable.
+2. Related lexical search if exact FTS misses, using tags and built-in synonym
+   expansion.
+3. Vector search if lexical results are weak or the query is vague, such as a
+   broad question.
+4. Fusion/reranking when both lexical and semantic signals exist.
+
+The vector index is therefore not a replacement for Markdown or FTS. It exists
+to recover memories that use different wording from the user's question and to
+improve broad queries.
 
 ### Default: Local Hash Embeddings
 

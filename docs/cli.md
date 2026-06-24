@@ -10,6 +10,16 @@ npm install -g @helloworlkd/pam-cli
 
 The package exposes the `pam` binary.
 
+To update a global install, stop any running `pam ui` or `pam server start`
+processes, then run:
+
+```bash
+npm install -g @helloworlkd/pam-cli@latest
+```
+
+PAM does not provide a self-upgrade command. Updating through npm keeps package
+management in the tool that owns the global install.
+
 For source development:
 
 ```bash
@@ -19,31 +29,6 @@ pnpm link:cli
 ```
 
 ## Commands
-
-### Upgrade
-
-```bash
-pam upgrade
-```
-
-Update the global PAM CLI. The command starts a small updater process, stops
-running PAM UI/MCP services, then runs
-`npm install -g @helloworlkd/pam-cli@latest`.
-This is the recommended update path on Windows because native SQLite files can
-stay locked while PAM services are running.
-
-`pam upgrade` prints the status file, log file, and a platform-specific
-command for following progress live. On Windows, use the printed
-`Get-Content -Wait -LiteralPath ...` command to watch the updater without
-starting another PAM process during npm installation.
-
-```bash
-pam upgrade status
-pam upgrade log
-```
-
-`pam upgrade status` shows the latest recorded phase, package spec, npm
-command, message, and log path. `pam upgrade log` prints the latest log path.
 
 ### Initialization
 
@@ -230,7 +215,7 @@ pam search [query] [options]
 - `--type <type>` - Filter by type
 - `--tag <tag>` - Filter by tag
 - `--limit <limit>` - Maximum results (default: 50)
-- `--semantic` - Use semantic vector search
+- `--semantic` - Use semantic vector search only
 
 **Examples:**
 
@@ -238,12 +223,18 @@ pam search [query] [options]
 pam search "TypeScript"
 pam search --tag "architecture"
 pam search "database" --tag "sql" --limit 10
+pam search "frontend framework"
 pam search "frontend framework" --semantic
 ```
 
-Lexical search runs exact matching first. If there are no exact hits, PAM
-falls back to related tags and synonyms, so natural queries such as
-`pam search "database choice"` can still find a stored PostgreSQL decision.
+Search is hybrid by default:
+
+1. PAM runs exact SQLite FTS5 first for fast precise matches.
+2. If exact hits are weak or missing, it tries related lexical matches from tags
+   and built-in synonyms. For example, `pam search "database choice"` can find a
+   stored PostgreSQL decision.
+3. If lexical results are still weak, or the query looks vague, PAM searches the
+   vector index and fuses semantic hits with lexical hits.
 
 Semantic search uses built-in local hash embeddings by default. For optional local model embeddings with the global CLI, install `@xenova/transformers` globally once and set `EMBEDDING_PROVIDER=local`:
 
@@ -252,6 +243,9 @@ npm install -g @xenova/transformers
 ```
 
 For OpenAI embeddings, set `EMBEDDING_PROVIDER=openai` and `OPENAI_API_KEY`.
+
+Use `--semantic` when you specifically want to inspect the vector index without
+the FTS and lexical reranking steps.
 
 ### Index Management
 

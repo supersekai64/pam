@@ -1,10 +1,9 @@
 import {
-  MemoryIndex,
   compileContext,
   createIntelligentMemory,
   deleteMemory,
   getProjectMemoryPath,
-  indexAllMemories,
+  hybridSearchMemories,
   loadAutoCaptureConfig,
   recordAccess,
   updateMemory,
@@ -105,20 +104,14 @@ export function resolveMemoryPath(context: McpToolContext) {
 
 export async function searchMemory(input: SearchMemoryInput, context: McpToolContext) {
   const basePath = resolveMemoryPath(context)
-  await indexAllMemories(basePath)
 
-  const index = new MemoryIndex(basePath)
-  const results = index.search({
+  return hybridSearchMemories(basePath, {
     query: input.query,
     type: input.type,
     tag: input.tag,
     theme: input.theme,
     limit: input.limit ?? 10,
-    natural: true,
   })
-  index.close()
-
-  return results
 }
 
 export async function getMemory(input: GetMemoryInput, context: McpToolContext) {

@@ -13,6 +13,10 @@ interface SemanticEmbeddingRow {
   content_hash: string
 }
 
+interface SemanticVectorRow {
+  id: string
+}
+
 export class SemanticIndex {
   private db: Database.Database
   private embeddingProvider: EmbeddingProvider
@@ -76,13 +80,19 @@ export class SemanticIndex {
       .get(memoryId) as SemanticEmbeddingRow | undefined
 
     if (existing?.content_hash === contentHash) {
-      return
+      const vector = this.db.prepare('SELECT id FROM vec_memories WHERE id = ?').get(memoryId) as
+        | SemanticVectorRow
+        | undefined
+
+      if (vector) return
     }
 
     const embedding = await this.embeddingProvider.generate(content)
 
-    const vectorStmt = this.db.prepare(`
-      INSERT OR REPLACE INTO vec_memories (id, embedding)
+    const deleteVectorStmt = this.db.prepare('DELETE FROM vec_memories WHERE id = ?')
+
+    const insertVectorStmt = this.db.prepare(`
+      INSERT INTO vec_memories (id, embedding)
       VALUES (?, ?)
     `)
 
@@ -92,7 +102,8 @@ export class SemanticIndex {
     `)
 
     const transaction = this.db.transaction(() => {
-      vectorStmt.run(memoryId, new Float32Array(embedding))
+      deleteVectorStmt.run(memoryId)
+      insertVectorStmt.run(memoryId, new Float32Array(embedding))
       metadataStmt.run(memoryId, contentHash, new Date().toISOString())
     })
 
@@ -167,7 +178,7 @@ export function removeSemanticMemory(basePath: string, memoryId: string): void {
   }
 }
 
-function semanticMemoryText(memory: Memory): string {
+export function semanticMemoryText(memory: Memory): string {
   return [
     memory.metadata.title,
     memory.metadata.type,

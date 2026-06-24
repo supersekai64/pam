@@ -1,6 +1,6 @@
 {
   "name": "@helloworlkd/pam-protocol",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "PAM MCP - Model Context Protocol server for PAM",
   "type": "module",
   "license": "MIT",

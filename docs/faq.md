@@ -16,7 +16,10 @@ No. Markdown is the source of truth. SQLite is an index.
 
 ## Can I use PAM offline?
 
-Yes for core storage, text search, CLI, export/import, and MCP. Semantic search is optional; local embeddings run offline after installing `@xenova/transformers` and downloading the model once.
+Yes for core storage, hybrid search, CLI, export/import, and MCP. The default
+semantic layer uses deterministic local hash embeddings, so it works offline
+without a model download. Optional local model embeddings run offline after
+installing `@xenova/transformers` and downloading the model once.
 
 ## Does semantic search require OpenAI?
 
