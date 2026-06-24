@@ -13,6 +13,11 @@ a granular npm access token that can publish public packages under the
 `@supersekai64` scope. The token owner must have publish rights for that npm
 user or organization scope.
 
+The npm scope must also exist before publishing. If npm returns
+`Scope not found` for `@supersekai64/pam-core`, create the `supersekai64`
+organization on npm first, or rename every package to use the npm account scope
+that actually owns the token.
+
 When creating the token on npm:
 
 - enable `Bypass two-factor authentication`;
