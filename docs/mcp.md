@@ -4,35 +4,47 @@ PAM exposes a Model Context Protocol server over stdio.
 
 ## Automatic Project Setup
 
-Running the default project initializer configures best-effort MCP and agent instruction files:
+Running the default project initializer creates project memory and, in an
+interactive terminal, asks which MCP and agent instruction files to generate:
 
 ```bash
 pam init
 ```
 
 For projects that already use npm/package.json, installing `@helloworlkd/pam-cli` as a
-direct local dependency also runs this bootstrap automatically:
+direct local dependency initializes project memory automatically:
 
 ```bash
 npm install -D @helloworlkd/pam-cli
 ```
 
-Use `PAM_SKIP_PROJECT_INIT=1` to disable the postinstall bootstrap.
+Use `PAM_SKIP_PROJECT_INIT=1` to disable the postinstall memory bootstrap.
 
-Generated or updated files:
+The local npm postinstall does not generate IDE files automatically. Run
+`pam init` after install and select the tools you use, or use explicit targets
+for non-interactive setup:
 
-- `AGENTS.md` for Codex-style and generic agent instructions
-- `CLAUDE.md` for Claude Code project instructions
-- `.claude/settings.json` for Claude Code lifecycle hook capture
-- `.codex/hooks.json` for Codex lifecycle hook capture
-- `opencode.json` for OpenCode MCP configuration
-- `.mcp.json` for clients that read project MCP configuration
-- `.vscode/mcp.json` for VS Code and GitHub Copilot MCP configuration
-- `.cursor/mcp.json` for Cursor MCP configuration
-- `.cursor/rules/pam.mdc` for Cursor project rules
-- `.github/copilot-instructions.md` for GitHub Copilot project instructions
+```bash
+pam init --integration agents --integration mcp
+pam init --integration vscode
+pam init --integration cursor
+pam init --all-integrations
+```
 
-Existing files are not blindly overwritten. Markdown instruction files receive a managed PAM block, and JSON config files are merged when they contain valid JSON. Invalid JSON config files are skipped and reported.
+Available project integration targets:
+
+- `agents`: `AGENTS.md` for generic agent instructions
+- `claude`: `CLAUDE.md` and `.claude/settings.json`
+- `codex`: `.codex/hooks.json`
+- `copilot`: `.github/copilot-instructions.md`
+- `cursor`: `.cursor/mcp.json` and `.cursor/rules/pam.mdc`
+- `opencode`: `opencode.json`
+- `mcp`: `.mcp.json`
+- `vscode`: `.vscode/mcp.json`
+
+Existing files are not blindly overwritten. Markdown instruction files receive
+a managed PAM block, and JSON config files are merged when they contain valid
+JSON. Invalid JSON config files are skipped and reported.
 
 Use this only to initialize memory storage without integration files:
 
@@ -56,8 +68,7 @@ args = ["server", "start"]
 startup_timeout_sec = 30
 ```
 
-Restart Codex after running the command. A project-local npm install can write
-project integration files automatically, but PAM intentionally does not modify
+Restart Codex after running the command. PAM intentionally does not modify
 global client config from npm postinstall; the global setup is opt-in.
 
 ## Start Server
@@ -221,7 +232,7 @@ relations are evidence-backed previews, not permanent graph mutations.
 }
 ```
 
-For local development before publishing the CLI, use Node directly:
+For local development without a globally installed CLI, use Node directly:
 
 ```json
 {

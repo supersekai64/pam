@@ -62,3 +62,20 @@ npm install -g @helloworlkd/pam-cli@latest
 
 For a workspace checkout, run `pnpm install && pnpm build && pnpm link:cli` after changing package
 versions or dependency ranges.
+
+## Unexpected pam binary on PATH
+
+If `pam --version` or `where pam` points to an unexpected local link, reinstall
+the scoped PAM CLI:
+
+```bash
+npm install -g @helloworlkd/pam-cli
+where pam
+pam --version
+```
+
+On Windows, the expected binary path is usually:
+
+```text
+C:\Users\<you>\AppData\Roaming\npm\pam.cmd
+```

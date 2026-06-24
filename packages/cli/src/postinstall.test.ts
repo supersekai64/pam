@@ -22,7 +22,7 @@ describe('postinstall project bootstrap', () => {
     await rm(tempDir, { recursive: true, force: true })
   })
 
-  it('waits for npm to persist a direct @helloworlkd/pam-cli dependency before initializing', async () => {
+  it('waits for npm to persist a direct @helloworlkd/pam-cli dependency before initializing memory only', async () => {
     const child = spawn(process.execPath, [postinstallPath, '--deferred', tempDir], {
       env: {
         ...process.env,
@@ -40,8 +40,8 @@ describe('postinstall project bootstrap', () => {
     expect(result.code).toBe(0)
     expect(result.stderr).toBe('')
     expect(existsSync(join(tempDir, '.ai-memory'))).toBe(true)
-    expect(existsSync(join(tempDir, 'AGENTS.md'))).toBe(true)
-    expect(existsSync(join(tempDir, '.mcp.json'))).toBe(true)
+    expect(existsSync(join(tempDir, 'AGENTS.md'))).toBe(false)
+    expect(existsSync(join(tempDir, '.mcp.json'))).toBe(false)
   })
 
   async function writeProjectPackageJson(extra: Record<string, unknown>) {
@@ -94,11 +94,6 @@ export async function initAutoCaptureConfig(memoryPath) {
   await writeFile(join(memoryPath, 'capture.json'), '{"mode":"assisted"}\\n', 'utf-8')
 }
 
-export async function configureProjectIntegrations(projectPath) {
-  await writeFile(join(projectPath, 'AGENTS.md'), 'PAM instructions\\n', 'utf-8')
-  await writeFile(join(projectPath, '.mcp.json'), '{"mcpServers":{}}\\n', 'utf-8')
-  return { results: [{ status: 'created' }, { status: 'created' }] }
-}
 `,
       'utf-8'
     )

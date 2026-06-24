@@ -2,9 +2,20 @@
 
 ## Installation
 
+For normal use:
+
+```bash
+npm install -g @helloworlkd/pam-cli
+```
+
+The package exposes the `pam` binary.
+
+For source development:
+
 ```bash
 pnpm install
 pnpm build
+pnpm link:cli
 ```
 
 ## Commands
@@ -16,7 +27,8 @@ pam upgrade
 ```
 
 Update the global PAM CLI. The command starts a small updater process, stops
-running PAM UI/MCP services, then runs `npm install -g @helloworlkd/pam-cli@latest`.
+running PAM UI/MCP services, then runs
+`npm install -g @helloworlkd/pam-cli@latest`.
 This is the recommended update path on Windows because native SQLite files can
 stay locked while PAM services are running.
 
@@ -44,6 +56,8 @@ Initialize memory storage in the current directory (`.ai-memory/`) and auto-conf
 **Options:**
 
 - `--no-integrations` - Skip agent and IDE integration files
+- `--all-integrations` - Generate every supported project integration file
+- `--integration <target>` - Generate one integration target; repeatable. Targets: `agents`, `claude`, `codex`, `copilot`, `cursor`, `opencode`, `mcp`, `vscode`
 
 ### Status
 
@@ -123,6 +137,7 @@ pam list [options]
 
 **Options:**
 
+- `--status <status>` - Filter by status (`active`, `proposed`, `archived`, `noise`, `deleted`)
 - `--type <type>` - Filter by type
 - `--tag <tag>` - Filter by tag
 
@@ -130,6 +145,7 @@ pam list [options]
 
 ```bash
 pam list --type decision --tag architecture
+pam list --status active
 ```
 
 ### Show Memory
@@ -609,8 +625,9 @@ pam ui --port 4040
 - `preference` - User preferences
 - `session` - Session notes
 - `task` - Tasks and todos
-- `client` - Client information
-- `pattern` - Reusable patterns
+- `exchange` - Redacted raw conversation exchange captured by hooks
+- `client` - Legacy client information
+- `pattern` - Legacy reusable patterns
 
 ## Memory Scope
 

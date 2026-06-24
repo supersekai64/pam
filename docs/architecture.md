@@ -30,6 +30,9 @@ See [docs/concepts.md](concepts.md#memory-discovery) for details.
 
 ## Packages
 
+Published packages use the `@helloworlkd` npm scope and the canonical GitHub
+repository `supersekai64/pam`.
+
 ### @helloworlkd/pam-core
 
 Responsible for storage, indexing, search, import, export, context compilation,

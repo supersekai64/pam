@@ -78,7 +78,7 @@ Supported types:
 PAM is project-only. Runtime clients do not choose a scope, and all new memory
 belongs to the current project store.
 
-Older Markdown files may still contain legacy scope values. PAM normalizes
+Older Markdown files may still contain previous scope values. PAM normalizes
 those values to `project` when memories are read or imported.
 
 ## Project Memory
@@ -169,6 +169,20 @@ choose the broad canonical theme and leave concrete evidence in the memory
 content. Metadata-only tags such as memory type, scope, status, source, agent,
 or model markers are treated as facets. Explicit concept exclusions are
 configured from Settings through `noise.ignoredConcepts`.
+
+Example:
+
+```bash
+pam add \
+  -t preference \
+  --concepts "UI" \
+  -c "Settings buttons should use text-sm sizing and avoid loading spinners."
+```
+
+Here `UI` is the strong concept. `settings button`, `text-sm`, and `loading
+spinner` remain useful evidence in the memory content, but they should not
+become separate strong concepts unless the client intentionally labels them as
+broad semantic themes.
 
 Use:
 

@@ -223,16 +223,26 @@ const nodeRequire = createRequire(import.meta.url)
 
 function resolveDefaultStaticDir(): string {
   const candidates = [
+    resolvePublishedUiStaticDir(),
     join(SERVER_DIST_DIR, '../../ui/dist/public'),
     join(SERVER_DIST_DIR, '../../@helloworlkd/pam-ui/dist/public'),
     join(SERVER_DIST_DIR, '../node_modules/@helloworlkd/pam-ui/dist/public'),
-  ]
+  ].filter((candidate): candidate is string => Boolean(candidate))
 
   for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate
   }
 
   return candidates[0]
+}
+
+function resolvePublishedUiStaticDir(): string | null {
+  try {
+    const uiEntry = nodeRequire.resolve('@helloworlkd/pam-ui')
+    return join(dirname(uiEntry), 'public')
+  } catch {
+    return null
+  }
 }
 
 const DEFAULT_STATIC_DIR = resolveDefaultStaticDir()

@@ -111,8 +111,10 @@ export {
 export {
   configureCodexGlobalIntegration,
   configureProjectIntegrations,
+  getAllProjectIntegrationTargets,
   type ConfigureProjectIntegrationsResult,
   type IntegrationResult,
+  type ProjectIntegrationTarget,
 } from './integrations.js'
 export { supersedeMemory, getSupersessionChain, getLatestVersion } from './supersession.js'
 export {

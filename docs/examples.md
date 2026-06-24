@@ -9,6 +9,7 @@ Goal: keep project decisions and gotchas available across agent sessions.
 
 ```bash
 pam init
+pam init --integration agents --integration mcp
 pam doctor integrations
 pam smoke-test agent
 ```
@@ -49,6 +50,7 @@ Goal: let Codex read and write project memories through MCP.
 ```bash
 pam init
 pam init --codex-global
+pam init --integration agents --integration codex
 pam doctor integrations
 pam smoke-test agent
 ```
@@ -69,6 +71,7 @@ Goal: record lifecycle observations and use MCP tools when available.
 
 ```bash
 pam init
+pam init --integration claude
 pam doctor integrations
 ```
 
@@ -87,9 +90,9 @@ pam status --verbose
 
 Goal: keep full control over durable memory.
 
-Set capture mode to manual in `.ai-memory/config.json` or through the UI before
-working with agents. Manual mode keeps MCP checkpoint calls from creating durable
-memories automatically.
+Set capture mode to manual with `pam capture set manual` or through the UI
+Settings page before working with agents. Manual mode keeps MCP checkpoint calls
+from creating durable memories automatically.
 
 Recommended routine:
 

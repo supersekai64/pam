@@ -69,21 +69,13 @@ function scheduleDeferredInit(projectPath) {
 
 async function initializeProject(projectPath) {
   try {
-    const { configureProjectIntegrations, initAutoCaptureConfig, initProjectMemory } =
-      await import('@helloworlkd/pam-core')
+    const { initAutoCaptureConfig, initProjectMemory } = await import('@helloworlkd/pam-core')
     const memoryPath = await initProjectMemory(projectPath)
     await initAutoCaptureConfig(memoryPath)
-    const { results } = await configureProjectIntegrations(projectPath)
-    const changed = results.filter(
-      (result) => result.status === 'created' || result.status === 'updated'
-    )
 
     console.log(`[PAM] Project memory initialized at ${memoryPath}`)
-    if (changed.length > 0) {
-      console.log(`[PAM] Wrote ${changed.length} agent/IDE integration file(s).`)
-    }
     console.log(
-      '[PAM] Reload VS Code/Cursor, start a new Claude Code/OpenCode session, or restart/open a new Codex session.'
+      '[PAM] Run `pam init` to choose which agent/IDE integration files to generate.'
     )
   } catch (error) {
     console.warn(

@@ -521,11 +521,11 @@ describe('local API concepts', () => {
       if (url.startsWith('https://registry.npmjs.org/')) {
         const packageName = decodeURIComponent(url.split('/').at(-2) ?? '')
         const latestVersions: Record<string, string> = {
-          '@helloworlkd/pam-core': '0.1.9',
+          '@helloworlkd/pam-core': '0.1.10',
           '@helloworlkd/pam-protocol': '0.1.10',
           '@helloworlkd/pam-ui': '1.0.0',
-          '@helloworlkd/pam-api': '0.1.15',
-          '@helloworlkd/pam-cli': '0.1.16',
+          '@helloworlkd/pam-api': '0.1.16',
+          '@helloworlkd/pam-cli': '0.1.17',
         }
 
         return new Response(
@@ -549,8 +549,8 @@ describe('local API concepts', () => {
 
       expect(versions.updateCount).toBe(0)
       expect(cli).toMatchObject({
-        currentVersion: '0.1.16',
-        latestVersion: '0.1.16',
+        currentVersion: '0.1.17',
+        latestVersion: '0.1.17',
         status: 'up-to-date',
       })
       expect(versions.packages.map((item) => item.name)).toEqual([

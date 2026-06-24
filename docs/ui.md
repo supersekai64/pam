@@ -5,6 +5,9 @@ leaving the machine. The UI uses the shadcn `b2CiAl5qk` preset (`base-mira`) as
 its visual baseline. Shared select menus disable item alignment with the
 trigger so popups align consistently to the trigger edge.
 
+The published UI package is `@helloworlkd/pam-ui@1.0.0`; users normally access
+it through `pam ui` from `@helloworlkd/pam-cli`.
+
 ## Start
 
 ```bash

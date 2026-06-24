@@ -2,6 +2,8 @@
 
 CLI for persistent, portable, model-independent AI memory.
 
+Published package: `@helloworlkd/pam-cli`.
+
 ## Installation
 
 ```bash
@@ -26,10 +28,8 @@ cd your-project
 npm install -D @helloworlkd/pam-cli
 ```
 
-Local install creates `.ai-memory/` and supported agent/IDE integration files.
-After the first install, reload VS Code/Cursor windows, start a new Claude
-Code/OpenCode session, or restart/open a new Codex session so the client reloads
-project config.
+Local install creates `.ai-memory/`. Run `pam init` after install to choose
+which agent/IDE integration files to generate.
 
 ## Quick Start
 

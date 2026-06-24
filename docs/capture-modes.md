@@ -31,6 +31,19 @@ pam capture set assisted
 pam capture set auto
 ```
 
+The same setting is available in the UI at `/settings`. The UI labels the
+stored values as **Automatic**, **Assisted**, and **Manual**; the file and CLI
+values remain `auto`, `assisted`, and `manual`.
+
+The Settings page also exposes ignored concepts as a semicolon-separated list:
+
+```text
+internal term; vendor detail; temporary label
+```
+
+Ignored concepts are hidden from strong concept displays and LLM context concept
+summaries. They do not delete tags or memory content.
+
 ## Manual Mode
 
 In manual mode, memories are created only when you explicitly call `pam add` or when an MCP client calls `add_memory` with `status: active`.
@@ -172,7 +185,7 @@ This is useful for:
 
 ## Best Practices
 
-1. **Use auto mode for normal projects** - It is the default because PAM is meant to work immediately after installation.
+1. **Use auto mode for normal projects** - It is the default because PAM is meant to work immediately after installation. In the UI this is shown as **Automatic**.
 
 2. **Treat proposed memories as exceptional in normal use** - If they appear in
    auto mode, check whether the project is actually configured for `assisted`

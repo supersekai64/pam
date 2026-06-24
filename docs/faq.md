@@ -59,6 +59,17 @@ pam export backup.zip
 
 Yes. The MCP server exposes tools for adding, editing, deleting, searching, and compiling context.
 
+## What npm package should I install?
+
+Install the scoped CLI package:
+
+```bash
+npm install -g @helloworlkd/pam-cli
+```
+
+It exposes the `pam` binary and pulls the compatible core, API, protocol, and UI
+packages.
+
 ## Does PAM automatically record OpenCode or other AI sessions?
 
 PAM supports three capture modes:
@@ -91,11 +102,11 @@ pam init
 
 cd backend
 pam add -t decision -c "Use PostgreSQL for the main database"
-# → Stored in ~/projects/my-app/.ai-memory/
+# -> Stored in ~/projects/my-app/.ai-memory/
 
 cd ../frontend
 pam list
-# → Shows the same memory
+# -> Shows the same memory
 ```
 
 If you want isolated memory for a specific project, initialize it in that project's directory:
@@ -103,13 +114,13 @@ If you want isolated memory for a specific project, initialize it in that projec
 ```bash
 cd ~/projects/my-app/backend
 pam init
-# → Creates isolated memory for this project only
+# -> Creates isolated memory for this project only
 ```
 
 Use `pam status` to see which memory directory is currently active.
 
 ## Is there a global memory store?
 
-No. PAM is project-only. Runtime clients do not provide a scope; `scope: global` and `pam init global` are not supported. Existing Markdown with legacy scopes is normalized to `project` when read.
+No. PAM is project-only. Runtime clients do not provide a scope; `scope: global` and `pam init global` are not supported. Existing Markdown with older scope values is normalized to `project` when read.
 
 Project memory is automatically discovered by walking up the directory tree.

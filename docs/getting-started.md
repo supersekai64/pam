@@ -3,7 +3,8 @@
 ## Prerequisites
 
 - Node.js >= 20.0.0
-- PNPM >= 9.0.0
+- npm for user installs
+- PNPM >= 9.0.0 for source development
 
 ## Installation
 
@@ -13,9 +14,13 @@
 npm install -g @helloworlkd/pam-cli
 ```
 
-This installs the `pam` command globally.
+This installs the `pam` command globally. PAM is published as scoped npm
+packages under `@helloworlkd`. Install the CLI package; it exposes the `pam`
+binary and pulls compatible core, API, protocol, and UI packages.
 
-If npm stays quiet during the first install, use `npm install -g @helloworlkd/pam-cli --loglevel=info` to show dependency progress.
+If npm stays quiet during the first install, use
+`npm install -g @helloworlkd/pam-cli --loglevel=info` to show dependency
+progress.
 
 On Windows, stop any running PAM UI or MCP server before updating the global
 package. Native SQLite files can stay locked while `pam ui` or
@@ -32,9 +37,10 @@ cd your-project
 npm install -D @helloworlkd/pam-cli
 ```
 
-When `@helloworlkd/pam-cli` is installed as a direct project dependency, its postinstall
-script initializes `.ai-memory/` and writes supported agent/IDE integration
-files. Set `PAM_SKIP_PROJECT_INIT=1` before install to opt out.
+When `@helloworlkd/pam-cli` is installed as a direct project dependency, its
+postinstall script initializes `.ai-memory/`. It does not generate IDE or agent
+files automatically. Run `pam init` after install to choose integrations, or set
+`PAM_SKIP_PROJECT_INIT=1` before install to opt out of memory bootstrap.
 
 **From source** (for development):
 
@@ -48,6 +54,8 @@ This installs dependencies, builds all packages, and links the `pam` command glo
 
 ```bash
 pnpm install
+pnpm build
+pnpm link:cli
 ```
 
 ## Build
@@ -72,11 +80,15 @@ This links the `pam` command globally from `packages/cli`. Use this root script 
 pam init
 ```
 
-This creates `.ai-memory/` in the current directory and auto-configures supported project-level agent integrations. Use `pam init --no-integrations` for memory storage only.
+This creates `.ai-memory/` in the current directory and, when interactive, asks
+which supported project-level agent integrations to generate. Use
+`pam init --no-integrations` for memory storage only, `pam init --all-integrations`
+to generate every supported file, or `pam init --integration <target>` for a
+targeted setup.
 
 If `@helloworlkd/pam-cli` was installed locally with `npm install -D @helloworlkd/pam-cli`, npm already
-runs this project bootstrap during postinstall. Re-run `pam init` whenever
-you want to refresh integration files.
+runs the memory bootstrap during postinstall. Re-run `pam init` whenever you
+want to add or refresh integration files.
 
 If you use Codex and want PAM exposed in every new Codex session, also configure the global Codex MCP server:
 
@@ -104,7 +116,7 @@ retrieval immediately.
 
 Treat this as the first-run proof:
 
-- `pam doctor integrations` should report every generated project file as OK.
+- `pam doctor integrations` should report the generated project files as OK.
 - `pam smoke-test agent` should create an active memory and print its ID.
 - The printed `pam search ...` or `pam context --query ...` command
   should find that memory immediately.
@@ -199,15 +211,15 @@ PAM searches for `.ai-memory/` by walking up the directory tree, similar to how 
 ```bash
 cd ~/projects/my-app
 pam init
-# → Creates ~/projects/my-app/.ai-memory/
+# -> Creates ~/projects/my-app/.ai-memory/
 
 cd backend
 pam add -t decision -c "Use PostgreSQL for the main database"
-# → Uses ~/projects/my-app/.ai-memory/
+# -> Uses ~/projects/my-app/.ai-memory/
 
 cd ../frontend
 pam list
-# → Shows the same memory
+# -> Shows the same memory
 ```
 
 **Example 2: Isolated memory**
@@ -215,8 +227,8 @@ pam list
 ```bash
 cd ~/projects/my-app/backend
 pam init
-# → Creates ~/projects/my-app/backend/.ai-memory/
-# → This project now has its own isolated memory
+# -> Creates ~/projects/my-app/backend/.ai-memory/
+# -> This project now has its own isolated memory
 ```
 
 ## Development

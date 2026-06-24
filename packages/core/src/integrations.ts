@@ -14,13 +14,27 @@ export interface ConfigureProjectIntegrationsResult {
   results: IntegrationResult[]
 }
 
+export type ProjectIntegrationTarget =
+  | 'agents'
+  | 'claude'
+  | 'codex'
+  | 'copilot'
+  | 'cursor'
+  | 'opencode'
+  | 'mcp'
+  | 'vscode'
+
+export interface ConfigureProjectIntegrationsOptions {
+  targets?: ProjectIntegrationTarget[]
+}
+
 const START_MARKER = '<!-- PAM:START -->'
 const END_MARKER = '<!-- PAM:END -->'
 
 const MEMORY_INSTRUCTIONS = `${START_MARKER}
 ## PAM Memory
 
-Use PAM as the project memory layer. **Memory capture is a first-class part of every task — not an optional extra.** When this conflicts with general "minimal change" or "only do what was asked" guidance, PAM capture wins for any durable preference, rule, decision, correction, or mistake expressed in the conversation.
+Use PAM as the project memory layer. **Memory capture is a first-class part of every task, not an optional extra.** When this conflicts with general "minimal change" or "only do what was asked" guidance, PAM capture wins for any durable preference, rule, decision, correction, or mistake expressed in the conversation.
 
 PAM uses **auto capture mode** by default: \`add_memory\` and \`memory_checkpoint\` create active memories after same-theme consolidation and contradiction handling. \`proposed\` memories are only expected in assisted review mode; manual mode records observations but skips automatic durable memory writes.
 
@@ -28,50 +42,50 @@ PAM uses **auto capture mode** by default: \`add_memory\` and \`memory_checkpoin
 
 **Strong concepts**: When calling \`add_memory\`, \`edit_memory\`, or \`memory_checkpoint\`, provide an optional \`concepts\` array with 1-3 broad, durable semantic themes chosen by the client AI. Use canonical project/product themes, not button labels, page section names, implementation details, memory types, model names, agent names, status labels, source names, or one-off nouns. Keep concrete details in the memory content as evidence.
 
-### Tool loading (read this first)
+### Tool loading
 
-The PAM tools (\`search_memory\`, \`add_memory\`, \`memory_checkpoint\`, \`compile_context\`, \`get_memory\`, \`edit_memory\`, \`supersede_memory\`, etc.) are exposed by an MCP server named \`pam\`. On some clients (notably VS Code Copilot) they are **deferred** and must be loaded before use:
+The PAM tools (\`search_memory\`, \`add_memory\`, \`memory_checkpoint\`, \`compile_context\`, \`get_memory\`, \`edit_memory\`, \`supersede_memory\`, etc.) are exposed by an MCP server named \`pam\`. On some clients they are deferred and must be loaded before use.
 
-- If your client lists deferred tools, call its tool-loading mechanism (e.g. \`tool_search\` with the query \`"pam memory"\`) at the very start of every task to load the PAM tools.
+- If your client lists deferred tools, call its tool-loading mechanism, for example \`tool_search\` with the query \`"pam memory"\`, at the very start of every task.
 - If the loading mechanism is unavailable or returns no results, fall back to the CLI: \`pam search\`, \`pam add\`, \`pam checkpoint\`.
-- Never skip memory work because the tools were not pre-loaded. Loading them is part of starting the task.
+- Never skip memory work because the tools were not pre-loaded.
 
 ### At the start of every task
 
-1. Load the PAM tools (see above).
-2. Call \`search_memory\` (or \`compile_context\`) with terms relevant to the user's request to retrieve existing rules, preferences, decisions, and recent sessions.
-3. Apply any retrieved \`rule\` / \`preference\` memories to the work you are about to do.
+1. Load the PAM tools.
+2. Call \`search_memory\` or \`compile_context\` with terms relevant to the user's request.
+3. Apply retrieved \`rule\` and \`preference\` memories to the work.
 
-### Triggers that REQUIRE an \`add_memory\` call (capture immediately, before or during the work — do not defer to end of turn)
+### Triggers that require \`add_memory\`
 
-- User says "always …", "never …", "from now on …", "I want X everywhere", "every time …" → type \`rule\` or \`preference\`.
-- User expresses a stylistic, UX, naming, or architectural choice that should apply beyond the current change → type \`preference\`.
-- User makes a technical decision (library, pattern, schema, protocol) → type \`decision\`.
-- User corrects you, says "this should have been remembered/automated", or points out a recurring issue → type \`rule\` (the expectation) and/or \`mistake\` (the lesson).
-- You discover a reusable fact, constraint, or gotcha about the codebase → type \`knowledge\`.
-- A follow-up task is identified but not done now → type \`task\`.
-- You complete meaningful work → type \`session\` with a short summary.
+- User says "always", "never", "from now on", "I want X everywhere", or "every time": capture a \`rule\` or \`preference\`.
+- User expresses a durable stylistic, UX, naming, or architectural choice: capture a \`preference\`.
+- User makes a technical decision: capture a \`decision\`.
+- User corrects you or points out a recurring issue: capture a \`rule\` and/or \`mistake\`.
+- You discover a reusable fact, constraint, or gotcha: capture \`knowledge\`.
+- A follow-up task is identified but not done now: capture a \`task\`.
+- You complete meaningful work: capture a \`session\` summary.
 
-Do not wait for the user to explicitly request capture. Do not bundle multiple unrelated triggers into one memory — emit one \`add_memory\` per durable item.
+Do not wait for the user to explicitly request capture. Do not bundle unrelated triggers into one memory.
 
 ### Before your final response
 
-- If meaningful project work happened, run \`memory_checkpoint\` with \`summary\`, and the relevant \`decisions\` / \`facts\` / \`preferences\` / \`mistakes\` / \`tasks\` arrays.
-- Always include user corrections and durable workflow expectations in the checkpoint.
-- If no MCP checkpoint tool is available, use the CLI fallback: \`pam add\` (one per item) and \`pam checkpoint\`.
+- If meaningful project work happened, run \`memory_checkpoint\` with \`summary\` and relevant \`decisions\`, \`facts\`, \`preferences\`, \`mistakes\`, and \`tasks\`.
+- Always include user corrections and durable workflow expectations.
+- If no MCP checkpoint tool is available, use CLI fallback.
 - After changing code, docs, configuration, or behavior, update relevant documentation in the same pass.
 
 ### Memory types
 
-- \`decision\` — technical decisions.
-- \`session\` — completed work summaries.
-- \`knowledge\` — reusable facts.
-- \`mistake\` — lessons learned.
-- \`preference\` — user or project preferences.
-- \`rule\` — durable workflow requirements ("always/never" statements).
-- \`task\` — follow-up work.
+- \`decision\`: technical decisions.
+- \`session\`: completed work summaries.
+- \`knowledge\`: reusable facts.
+- \`mistake\`: lessons learned.
+- \`preference\`: user or project preferences.
+- \`rule\`: durable workflow requirements.
+- \`task\`: follow-up work.
 
-Use scope \`project\`. PAM is project-only; legacy scopes in existing Markdown are normalized to \`project\` when read.
+Use scope \`project\`. PAM is project-only; older scope values in existing Markdown are normalized to \`project\` when read.
 
 Do not store secrets, API keys, tokens, passwords, private credentials, or transient logs.
 ${END_MARKER}
@@ -134,9 +148,11 @@ const PAM_CLAUDE_HOOKS = pamHookConfig('claude-code')
 const PAM_CODEX_HOOKS = pamHookConfig('codex')
 
 export async function configureProjectIntegrations(
-  projectPath: string
+  projectPath: string,
+  options: ConfigureProjectIntegrationsOptions = {}
 ): Promise<ConfigureProjectIntegrationsResult> {
   const results: IntegrationResult[] = []
+  const targets = new Set(options.targets ?? getAllProjectIntegrationTargets())
   const captureConfigPath = join(projectPath, '.ai-memory', 'auto-capture.yaml')
   const hadCaptureConfig = existsSync(captureConfigPath)
 
@@ -145,30 +161,52 @@ export async function configureProjectIntegrations(
     path: captureConfigPath,
     status: hadCaptureConfig ? 'unchanged' : 'created',
   })
-  results.push(await upsertMarkdownBlock(join(projectPath, 'AGENTS.md'), '# Project Instructions'))
-  results.push(await upsertMarkdownBlock(join(projectPath, 'CLAUDE.md'), '# Claude Instructions'))
-  results.push(
-    await upsertMarkdownBlock(
-      join(projectPath, '.github', 'copilot-instructions.md'),
-      '# GitHub Copilot Instructions'
+  if (targets.has('agents')) {
+    results.push(
+      await upsertMarkdownBlock(join(projectPath, 'AGENTS.md'), '# Project Instructions')
     )
-  )
-  results.push(
-    await upsertMarkdownBlock(
-      join(projectPath, '.cursor', 'rules', 'pam.mdc'),
-      '---\nalwaysApply: true\n---'
+  }
+  if (targets.has('claude')) {
+    results.push(await upsertMarkdownBlock(join(projectPath, 'CLAUDE.md'), '# Claude Instructions'))
+    results.push(
+      await upsertJsonConfig(join(projectPath, '.claude', 'settings.json'), PAM_CLAUDE_HOOKS)
     )
-  )
-  results.push(
-    await upsertJsonConfig(join(projectPath, '.claude', 'settings.json'), PAM_CLAUDE_HOOKS)
-  )
-  results.push(await upsertJsonConfig(join(projectPath, '.codex', 'hooks.json'), PAM_CODEX_HOOKS))
-  results.push(await upsertOpenCodeConfig(join(projectPath, 'opencode.json')))
-  results.push(await upsertMcpConfig(join(projectPath, '.mcp.json')))
-  results.push(await upsertMcpConfig(join(projectPath, '.cursor', 'mcp.json')))
-  results.push(await upsertVsCodeMcpConfig(join(projectPath, '.vscode', 'mcp.json')))
+  }
+  if (targets.has('codex')) {
+    results.push(await upsertJsonConfig(join(projectPath, '.codex', 'hooks.json'), PAM_CODEX_HOOKS))
+  }
+  if (targets.has('copilot')) {
+    results.push(
+      await upsertMarkdownBlock(
+        join(projectPath, '.github', 'copilot-instructions.md'),
+        '# GitHub Copilot Instructions'
+      )
+    )
+  }
+  if (targets.has('cursor')) {
+    results.push(
+      await upsertMarkdownBlock(
+        join(projectPath, '.cursor', 'rules', 'pam.mdc'),
+        '---\nalwaysApply: true\n---'
+      )
+    )
+    results.push(await upsertMcpConfig(join(projectPath, '.cursor', 'mcp.json')))
+  }
+  if (targets.has('opencode')) {
+    results.push(await upsertOpenCodeConfig(join(projectPath, 'opencode.json')))
+  }
+  if (targets.has('mcp')) {
+    results.push(await upsertMcpConfig(join(projectPath, '.mcp.json')))
+  }
+  if (targets.has('vscode')) {
+    results.push(await upsertVsCodeMcpConfig(join(projectPath, '.vscode', 'mcp.json')))
+  }
 
   return { results }
+}
+
+export function getAllProjectIntegrationTargets(): ProjectIntegrationTarget[] {
+  return ['agents', 'claude', 'codex', 'copilot', 'cursor', 'opencode', 'mcp', 'vscode']
 }
 
 export async function configureCodexGlobalIntegration(

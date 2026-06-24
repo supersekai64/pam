@@ -2,80 +2,87 @@
 
 Open-source platform for persistent, portable, and model-independent AI memory.
 
-PAM lets you maintain user-controlled memory that works across multiple LLMs, IDEs, agents, and tools.
+PAM lets you maintain user-controlled memory that works across multiple LLMs,
+IDEs, agents, and tools. Memory lives in project files, can be inspected and
+edited, and is exposed through the same CLI, MCP, API, and UI surfaces.
+
+PAM is not another chat interface. It is a local memory layer for AI-assisted
+work.
 
 ## Why PAM?
 
-AI memory is often trapped inside one chat, IDE, vendor, or session.
-
-PAM gives your tools a shared, local memory store that you control. Memories
-live as project files, can be inspected and edited, and are exposed through the
-same CLI, MCP, API, and UI surfaces.
-
-Any compatible agent can read the same context, propose updates, and reuse
-project knowledge across sessions.
-PAM provides the shared memory layer; your agent still needs the PAM MCP tools
-or generated hooks to capture memories.
+AI memory is often trapped inside one chat, IDE, vendor, or session. PAM gives
+your tools a shared project memory store that you control.
 
 Key advantages:
 
 - Works across tools, agents, IDEs, and LLM providers.
 - Keeps memory local, reviewable, editable, and user-controlled.
-- Installs with one npm command and exposes a single `pam` CLI.
+- Installs from npm and exposes a single `pam` CLI.
 - Provides CLI, MCP, API, and UI access to the same memory store.
-- Tracks useful context over time instead of losing it in chat history.
+- Tracks durable context over time instead of losing it in chat history.
+- Uses Markdown as the source of truth and SQLite/vector indexes as rebuildable
+  derived data.
 
-PAM is not another chat interface. It is a memory layer for AI-assisted work.
-
-## PAMagotchi Lite
-
-This workspace now includes [PAMagotchi Lite](pamagotchi-lite/README.md), a
-raw-first rebuild experiment focused on the simplest useful memory loop:
-append-only exchange capture, AI-assisted themed checkpoints, and compact
-context compilation.
+Any compatible agent can read the same context, propose or create updates, and
+reuse project knowledge across sessions. PAM provides the shared memory layer;
+your agent still needs the PAM MCP tools or generated hooks to capture memory.
 
 ## Installation
 
-**From npm** (recommended for users):
+### From Npm
 
 ```bash
 npm install -g @helloworlkd/pam-cli
 ```
 
-This installs the `pam` command globally.
+This installs the `pam` command globally. PAM is published under the
+`@helloworlkd` npm scope; `@helloworlkd/pam-cli` pulls the compatible core, API,
+protocol, and UI packages.
 
-If npm stays quiet during the first install, use `npm install -g @helloworlkd/pam-cli --loglevel=info` to show dependency progress.
+If npm stays quiet during the first install, use:
+
+```bash
+npm install -g @helloworlkd/pam-cli --loglevel=info
+```
 
 On Windows, stop any running PAM UI or MCP server before updating the global
 package. Native SQLite files can stay locked while `pam ui` or
-`pam server start` is running, which makes npm fail with `EBUSY`.
-After PAM is installed, prefer `pam upgrade` for future global updates; it
-stops running PAM UI/MCP services before invoking npm. The command prints a
-status file, log file, and a platform-specific follow command so you can watch
-upgrade progress while the updater runs in the background.
-
-To make PAM part of a specific project that already uses npm/package.json,
-install it locally from that project root:
+`pam server start` is running. After PAM is installed, prefer:
 
 ```bash
+pam upgrade
+```
+
+`pam upgrade` stops running PAM UI/MCP services before invoking npm and prints a
+status file, log file, and platform-specific command for following progress.
+
+### Project-Local Install
+
+For a project that already uses npm/package.json:
+
+```bash
+cd your-project
 npm install -D @helloworlkd/pam-cli
 ```
 
-Local installs bootstrap the project automatically: PAM creates `.ai-memory/`
-and writes the supported agent/IDE integration files. After the first install,
-reload VS Code/Cursor windows, start a new Claude Code/OpenCode session, or
-restart/open a new Codex session so the client reloads project instructions and
-MCP configuration.
+Local installs bootstrap the memory store automatically. PAM creates
+`.ai-memory/`, but it does not guess which IDE or agent files you want. Run
+`pam init` after install to choose project integrations interactively, or use
+`pam init --integration <target>` for a non-interactive setup.
 
-**From source** (for development):
+Set `PAM_SKIP_PROJECT_INIT=1` before install to opt out of project bootstrap.
+
+### From Source
 
 ```bash
 pnpm setup
 ```
 
-This installs dependencies, builds all packages, and links the `pam` command globally.
+This installs dependencies, builds all packages, and links the `pam` command
+globally from `packages/cli`.
 
-**Manual installation** (if you need more control):
+Manual development flow:
 
 ```bash
 pnpm install
@@ -83,30 +90,28 @@ pnpm build
 pnpm link:cli
 ```
 
-`pnpm link:cli` exposes the `pam` command globally from `packages/cli`.
-
 ## Quick Start
 
-### 1. Initialize PAM in your project
+### 1. Initialize PAM
 
 ```bash
 cd your-project
 pam init
 ```
 
-This creates `.ai-memory/` and configures agent integrations automatically.
+This creates `.ai-memory/` and asks which supported agent integrations to
+generate. If you installed `@helloworlkd/pam-cli` locally with
+`npm install -D @helloworlkd/pam-cli`, npm postinstall already ran this
+memory bootstrap, but you can still run `pam init` to add integrations.
 
-If you installed `@helloworlkd/pam-cli` locally in the project with `npm install -D @helloworlkd/pam-cli`,
-this step is performed automatically by npm postinstall.
+### 2. Configure MCP
 
-### 2. Configure your IDE or AI agent
-
-Add PAM to your MCP-compatible tool (Cursor, VSCode with Copilot, Claude Code, etc.):
+Add PAM to your MCP-compatible tool:
 
 ```json
 {
   "mcpServers": {
-    "PAM": {
+    "pam": {
       "command": "pam",
       "args": ["server", "start"]
     }
@@ -114,75 +119,68 @@ Add PAM to your MCP-compatible tool (Cursor, VSCode with Copilot, Claude Code, e
 }
 ```
 
-See [docs/mcp.md](docs/mcp.md) for detailed configuration examples.
+See [docs/mcp.md](docs/mcp.md) for client-specific setup and generated
+integration files.
 
-### 3. Verify the setup
+### 3. Verify The Setup
 
 ```bash
 pam doctor integrations
 pam smoke-test agent
 ```
 
-`doctor integrations` checks the generated client files, `smoke-test agent`
-creates an active test memory, and the printed search/context command verifies
-that the agent can recall it immediately.
+First-run success means:
 
-First-run success looks like this: `doctor integrations` reports OK, the smoke
-test prints an active memory ID, and the printed `pam search ...` or
-`pam context --query ...` command can find it immediately.
+- `pam doctor integrations` reports generated project files as OK.
+- `pam smoke-test agent` creates an active memory and prints its ID.
+- The printed `pam search ...` or `pam context --query ...` command finds that
+  memory immediately.
+- `pam ui --open` shows the same project memory store.
 
-### 4. Work with your AI agent (automatic capture)
+### 4. Work With Automatic Capture
 
-By default, PAM uses **auto mode**: an integrated agent can write active
-memories directly, and lifecycle hooks capture raw conversation exchanges as
-Markdown `exchange` memories.
+By default, PAM uses **auto mode**. Integrated agents can write active memories
+through MCP, and lifecycle hooks can capture redacted raw `exchange` memories as
+Markdown evidence.
 
-MCP capture is intelligent by default. When an agent saves a durable signal,
-PAM looks for same-type, same-theme memories first: review-mode duplicates are
-merged, active contradictions can be superseded in auto mode, and evidence
-links are preserved through `source_ids`.
+MCP capture is intelligent by default. When an agent saves a durable signal, PAM
+looks for same-type, same-theme memories first: review-mode duplicates are
+merged, active contradictions can be superseded in auto mode, and evidence links
+are preserved through `source_ids`.
 
-**Workflow:**
-
-1. Work normally with your AI agent (Cursor, Copilot, Claude Code, etc.)
-2. Hooks capture raw prompt/exchange evidence as Markdown
-3. Durable signals are categorized into broad themes such as Instruction, Decision, and Issue
-4. PAM updates SQLite theme compilations and vector indexes automatically
-5. Agents search memory through MCP before answering
-
-**Example:**
+Inspect memory:
 
 ```bash
-# Inspect the active memories the agent can use
 pam list --status active
-
-# Or open the UI to inspect memory and context
+pam search "database decision"
 pam ui --open
 ```
 
-### 5. Manual mode (optional)
+### 5. Manual Capture
 
-You can also add memories manually:
+You can also add memories explicitly:
 
 ```bash
-pam add -t decision -c "Use PostgreSQL for the main database"
+pam add -t decision -c "Use PostgreSQL for the main database" --concepts "Architecture"
 pam list
 pam search "database"
 ```
 
-See [docs/capture-modes.md](docs/capture-modes.md) for all capture modes (manual, assisted, auto).
+See [docs/capture-modes.md](docs/capture-modes.md) for manual, assisted, and
+auto mode details.
 
-## How It Works
+## How Memory Discovery Works
 
-PAM works like `.git` - it searches for `.ai-memory/` by walking up the directory tree.
+PAM works like `.git`: it searches for `.ai-memory/` by walking up the directory
+tree.
 
-### Shared Memory (Monorepo)
+### Shared Memory
 
-```
+```text
 ~/projects/my-app/
-  ├── .ai-memory/              ← Initialize here
-  ├── backend/                 ← Uses parent memory
-  └── frontend/                ← Uses parent memory
+  |-- .ai-memory/              <- Initialize here
+  |-- backend/                 <- Uses parent memory
+  `-- frontend/                <- Uses parent memory
 ```
 
 ```bash
@@ -191,48 +189,94 @@ pam init
 
 cd backend
 pam add -t decision -c "Use PostgreSQL for the main database"
-# → Stored in ~/projects/my-app/.ai-memory/
+# -> Stored in ~/projects/my-app/.ai-memory/
 
 cd ../frontend
 pam list
-# → Shows the same memory
+# -> Shows the same memory
 ```
 
 ### Isolated Memory
 
-```
+```text
 ~/projects/my-app/
-  ├── backend/
-  │   └── .ai-memory/          ← Initialize here for isolated memory
-  └── frontend/
-      └── .ai-memory/          ← Initialize here for isolated memory
+  |-- backend/
+  |   `-- .ai-memory/          <- Isolated backend memory
+  `-- frontend/
+      `-- .ai-memory/          <- Isolated frontend memory
 ```
 
 ```bash
 cd ~/projects/my-app/backend
 pam init
-# → Creates isolated memory for this project only
+# -> Creates isolated memory for this project only
 ```
 
 ## Features
 
-- Human-readable Markdown memory storage, including raw `exchange` memories
-- SQLite + FTS5 indexing
-- SQLite theme compilations for compact Instruction/Decision/Issue-style context
-- Text, tag, and project-pam search
-- Automatic semantic vectors with built-in local hash embeddings, optional local model, or OpenAI embeddings
-- Export/import in ZIP, JSON, Markdown, and SQLite formats
-- Basic secret redaction
-- Context compilation
-- Supersession chains for updated or conflicting memories
-- Agent handoffs for cross-session context transfer
-- Configurable pam decay and forget sweeps
-- MCP stdio server
-- Local web UI via `pam ui`
-- Three capture modes: auto (default), assisted, and manual
-- Intelligent MCP capture that merges same-theme review-mode proposals, detects
-  likely contradictions, and preserves source links when replacing active guidance
-- Optional diagnostics: recommendations, cleanup, distillation, and Knowledge Graph previews
+- Human-readable Markdown memory storage, including raw `exchange` memories.
+- SQLite + FTS5 indexing.
+- SQLite theme compilations for compact Instruction/Decision/Issue-style
+  context.
+- Text, tag, metadata, and semantic search.
+- Automatic semantic vectors with built-in local hash embeddings, optional local
+  model embeddings, or OpenAI embeddings.
+- Export/import in ZIP, JSON, Markdown, and SQLite formats.
+- Basic secret redaction.
+- Context compilation for LLM prompts.
+- Supersession chains for updated or conflicting memories.
+- Agent handoffs for cross-session context transfer.
+- Configurable memory decay and forget sweeps.
+- MCP stdio server.
+- Local web UI via `pam ui`.
+- Three capture modes: auto (default), assisted, and manual.
+- Settings UI for capture mode, semicolon-separated ignored concepts, and index
+  rebuilds.
+- LLM context page with copy-to-clipboard support.
+- Strong concepts driven by client-provided semantic concepts, with content
+  extraction fallback and user-configurable ignored concepts.
+- Sidebar version status for core, protocol, UI, API, and CLI packages.
+- Optional diagnostics: recommendations, cleanup, distillation, and Knowledge
+  Graph previews.
+
+## UI
+
+```bash
+pam ui --open
+```
+
+The dashboard shows memory activity, active context source count, selected LLM
+context preview, strong concepts, Knowledge Graph metrics, SQLite index health,
+package versions, and memory inventory. `/llm-context` shows the full generated
+context and includes a copy button. `/settings` controls capture mode and
+ignored concepts.
+
+See [docs/ui.md](docs/ui.md).
+
+## Semantic Search
+
+PAM uses vector embeddings for semantic search and automatic indexing:
+
+- **Default local**: deterministic hash embeddings, 384 dimensions, no setup.
+- **Optional local model**: `Xenova/all-MiniLM-L6-v2`, 384 dimensions, offline
+  after setup.
+- **Optional OpenAI**: `text-embedding-3-small`, 1536 dimensions, requires an
+  API key.
+
+Optional local model:
+
+```bash
+npm install -g @xenova/transformers
+```
+
+OpenAI embeddings:
+
+```bash
+export EMBEDDING_PROVIDER=openai
+export OPENAI_API_KEY=your_key_here
+```
+
+See [docs/concepts.md](docs/concepts.md#semantic-search).
 
 ## Documentation
 
@@ -248,6 +292,7 @@ pam init
 - [Security](docs/security.md)
 - [Concepts](docs/concepts.md)
 - [FAQ](docs/faq.md)
+- [Debug](docs/debug.md)
 
 ## Examples
 
@@ -256,64 +301,31 @@ pam init
 - [Shared Memory](examples/shared-memory.md)
 - [MCP Config](examples/mcp-config.json)
 
-## Local UI
-
-```bash
-pam ui --open
-```
-
-See [docs/ui.md](docs/ui.md).
-
-## Semantic Search
-
-PAM uses vector embeddings for semantic search and automatic pam indexing:
-
-- **Default local**: deterministic hash embeddings (384 dimensions, no setup)
-- **Optional local model**: `Xenova/all-MiniLM-L6-v2` (384 dimensions, runs offline after setup)
-- **Optional**: OpenAI `text-embedding-3-small` (1536 dimensions, requires API key)
-
-To use local embeddings:
-
-```bash
-npm install -g @xenova/transformers
-```
-
-To use OpenAI embeddings:
-
-```bash
-export EMBEDDING_PROVIDER=openai
-export OPENAI_API_KEY=your_key_here
-```
-
-See [docs/concepts.md](docs/concepts.md#semantic-search) for details.
-
 ## Development
 
 ```bash
 pnpm build
 pnpm test
-pnpm exec playwright install chromium # once, before browser E2E tests
+pnpm exec playwright install chromium
 pnpm test:e2e
 pnpm lint
 pnpm format
 pnpm release:check
 ```
 
-See [docs/release.md](docs/release.md) for npm publishing.
-
 ## Structure
 
 ```text
 PAM/
-├── packages/
-│   ├── core/       # Storage, indexing, search
-│   ├── api/        # Local HTTP API for UI/Desktop/IDE clients
-│   ├── cli/        # Command-line interface
-│   ├── mcp/        # MCP server
-│   └── ui/         # Local web interface
-├── docs/           # Documentation
-├── examples/       # Usage examples
-└── scripts/        # Utility scripts
+|-- packages/
+|   |-- core/       # Storage, indexing, search
+|   |-- api/        # Local HTTP API for UI/Desktop/IDE clients
+|   |-- cli/        # Command-line interface
+|   |-- mcp/        # MCP server
+|   `-- ui/         # Local web interface
+|-- docs/           # Documentation
+|-- examples/       # Usage examples
+`-- scripts/        # Utility scripts
 ```
 
 ## License
