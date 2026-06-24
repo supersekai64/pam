@@ -1,112 +1,104 @@
 # Portable AI Memory (PAM)
 
-Open-source platform for persistent, portable, and model-independent AI memory.
+[![npm version](https://img.shields.io/npm/v/%40helloworlkd%2Fpam-cli?label=pam-cli)](https://www.npmjs.com/package/@helloworlkd/pam-cli)
+[![npm downloads](https://img.shields.io/npm/dm/%40helloworlkd%2Fpam-cli?label=npm%20downloads)](https://www.npmjs.com/package/@helloworlkd/pam-cli)
+[![Node.js](https://img.shields.io/node/v/%40helloworlkd%2Fpam-cli?label=node)](#requirements)
+[![License](https://img.shields.io/npm/l/%40helloworlkd%2Fpam-cli?label=license)](LICENSE)
 
-PAM lets you maintain user-controlled memory that works across multiple LLMs,
-IDEs, agents, and tools. Memory lives in project files, can be inspected and
-edited, and is exposed through the same CLI, MCP, API, and UI surfaces.
+Persistent, local, model-independent memory for AI-assisted development.
 
-PAM is not another chat interface. It is a local memory layer for AI-assisted
-work.
+PAM stores durable project knowledge in `.ai-memory/` and exposes the same
+memory store through a CLI, MCP server, local HTTP API, and local web UI. It is
+designed for teams and developers who want AI tools to remember project
+decisions, rules, mistakes, preferences, tasks, and handoff context across
+sessions, editors, agents, and LLM providers.
 
-## Why PAM?
+PAM is not a hosted chat product. It is a local memory layer that you control.
 
-AI memory is often trapped inside one chat, IDE, vendor, or session. PAM gives
-your tools a shared project memory store that you control.
+## Start Here
 
-Key advantages:
+- If you want to use PAM from npm, install `@helloworlkd/pam-cli` and run the
+  `pam` command.
+- If you want to integrate PAM into another TypeScript tool, use the published
+  packages listed in [Published Packages](#published-packages).
+- If you want to fork or contribute to PAM, use the workflow in
+  [Development From Source](#development-from-source).
 
-- Works across tools, agents, IDEs, and LLM providers.
-- Keeps memory local, reviewable, editable, and user-controlled.
-- Installs from npm and exposes a single `pam` CLI.
-- Provides CLI, MCP, API, and UI access to the same memory store.
-- Tracks durable context over time instead of losing it in chat history.
-- Uses Markdown as the source of truth and SQLite/vector indexes as rebuildable
-  derived data.
+## Requirements
 
-Any compatible agent can read the same context, propose or create updates, and
-reuse project knowledge across sessions. PAM provides the shared memory layer;
-your agent still needs the PAM MCP tools or generated hooks to capture memory.
+- Node.js `>=20.0.0`
+- npm for normal package installs
+- pnpm `>=9.0.0` for source development
 
-## Installation
+## Install From npm
 
-### From Npm
+### Global CLI
 
 ```bash
 npm install -g @helloworlkd/pam-cli
+pam --version
 ```
 
-This installs the `pam` command globally. PAM is published under the
-`@helloworlkd` npm scope; `@helloworlkd/pam-cli` pulls the compatible core, API,
-protocol, and UI packages.
+This installs the `pam` command globally. The CLI package pulls compatible
+versions of the core, API, protocol, and UI packages.
 
-If npm stays quiet during the first install, use:
+If npm does not show progress during the first install, run:
 
 ```bash
 npm install -g @helloworlkd/pam-cli --loglevel=info
 ```
 
-On Windows, stop any running PAM UI or MCP server before updating the global
-package. Native SQLite files can stay locked while `pam ui` or
-`pam server start` is running. After PAM is installed, prefer:
+For future global updates, prefer:
 
 ```bash
 pam upgrade
 ```
 
-`pam upgrade` stops running PAM UI/MCP services before invoking npm and prints a
-status file, log file, and platform-specific command for following progress.
+`pam upgrade` stops running PAM UI/MCP services before invoking npm. This avoids
+native SQLite file locks, especially on Windows when `pam ui` or
+`pam server start` is still running.
 
-### Project-Local Install
+### Project-Local CLI
 
-For a project that already uses npm/package.json:
+For a project that already has a `package.json`:
 
 ```bash
 cd your-project
 npm install -D @helloworlkd/pam-cli
 ```
 
-Local installs bootstrap the memory store automatically. PAM creates
-`.ai-memory/`, but it does not guess which IDE or agent files you want. Run
-`pam init` after install to choose project integrations interactively, or use
-`pam init --integration <target>` for a non-interactive setup.
+Local install bootstraps `.ai-memory/` automatically. It does not guess which
+IDE or AI-agent files you want, so run `pam init` afterwards to generate
+integrations. Set `PAM_SKIP_PROJECT_INIT=1` before install if you do not want
+postinstall to initialize project memory.
 
-Set `PAM_SKIP_PROJECT_INIT=1` before install to opt out of project bootstrap.
+## First Project Setup
 
-### From Source
-
-```bash
-pnpm setup
-```
-
-This installs dependencies, builds all packages, and links the `pam` command
-globally from `packages/cli`.
-
-Manual development flow:
-
-```bash
-pnpm install
-pnpm build
-pnpm link:cli
-```
-
-## Quick Start
-
-### 1. Initialize PAM
+Run these commands in the project that should own the memory store:
 
 ```bash
 cd your-project
 pam init
+pam doctor integrations
+pam smoke-test agent
+pam ui --open
 ```
 
-This creates `.ai-memory/` and asks which supported agent integrations to
-generate. If you installed `@helloworlkd/pam-cli` locally with
-`npm install -D @helloworlkd/pam-cli`, npm postinstall already ran this
-memory bootstrap, but you can still run `pam init` to add integrations.
+What each step does:
 
-### 2. Configure MCP
+- `pam init` creates `.ai-memory/` and can generate project integration files.
+- `pam doctor integrations` checks that generated files and MCP config are
+  ready.
+- `pam smoke-test agent` creates and retrieves a test memory.
+- `pam ui --open` opens the local dashboard for the same memory store.
 
-Add PAM to your MCP-compatible tool:
+When an IDE or AI client is already running, restart or reload it after
+generating integration files so it picks up the new MCP configuration and
+instructions.
+
+## MCP Setup
+
+Add PAM to any MCP-compatible client:
 
 ```json
 {
@@ -119,180 +111,186 @@ Add PAM to your MCP-compatible tool:
 }
 ```
 
-See [docs/mcp.md](docs/mcp.md) for client-specific setup and generated
-integration files.
+See [docs/mcp.md](docs/mcp.md) for client-specific examples.
 
-### 3. Verify The Setup
+## Daily CLI Commands
 
-```bash
-pam doctor integrations
-pam smoke-test agent
-```
+| Task                      | Command                                                         |
+| ------------------------- | --------------------------------------------------------------- |
+| Initialize project memory | `pam init`                                                      |
+| Add a memory manually     | `pam add -t decision -c "Use PostgreSQL for the main database"` |
+| List active memories      | `pam list --status active`                                      |
+| Search memory             | `pam search "database decision"`                                |
+| Build LLM context         | `pam context --query "architecture" --output`                   |
+| Open the UI               | `pam ui --open`                                                 |
+| Start the MCP server      | `pam server start`                                              |
+| Check setup health        | `pam doctor integrations`                                       |
+| Export memory             | `pam export backup.zip`                                         |
+| Import memory             | `pam import backup.json`                                        |
+| Update global install     | `pam upgrade`                                                   |
 
-First-run success means:
+See [docs/cli.md](docs/cli.md) for the full command reference.
 
-- `pam doctor integrations` reports generated project files as OK.
-- `pam smoke-test agent` creates an active memory and prints its ID.
-- The printed `pam search ...` or `pam context --query ...` command finds that
-  memory immediately.
-- `pam ui --open` shows the same project memory store.
+## How PAM Stores Memory
 
-### 4. Work With Automatic Capture
-
-By default, PAM uses **auto mode**. Integrated agents can write active memories
-through MCP, and lifecycle hooks can capture redacted raw `exchange` memories as
-Markdown evidence.
-
-MCP capture is intelligent by default. When an agent saves a durable signal, PAM
-looks for same-type, same-theme memories first: review-mode duplicates are
-merged, active contradictions can be superseded in auto mode, and evidence links
-are preserved through `source_ids`.
-
-Inspect memory:
-
-```bash
-pam list --status active
-pam search "database decision"
-pam ui --open
-```
-
-### 5. Manual Capture
-
-You can also add memories explicitly:
-
-```bash
-pam add -t decision -c "Use PostgreSQL for the main database" --concepts "Architecture"
-pam list
-pam search "database"
-```
-
-See [docs/capture-modes.md](docs/capture-modes.md) for manual, assisted, and
-auto mode details.
-
-## How Memory Discovery Works
-
-PAM works like `.git`: it searches for `.ai-memory/` by walking up the directory
-tree.
-
-### Shared Memory
+PAM works like `.git`: commands search upward from the current directory until
+they find `.ai-memory/`.
 
 ```text
-~/projects/my-app/
-  |-- .ai-memory/              <- Initialize here
-  |-- backend/                 <- Uses parent memory
-  `-- frontend/                <- Uses parent memory
+my-app/
+|-- .ai-memory/       # shared memory store
+|-- backend/          # uses parent memory
+`-- frontend/         # uses parent memory
 ```
 
-```bash
-cd ~/projects/my-app
-pam init
+Memory is stored as human-readable Markdown. SQLite, FTS, semantic vectors, and
+theme compilations are derived indexes that can be rebuilt.
 
-cd backend
-pam add -t decision -c "Use PostgreSQL for the main database"
-# -> Stored in ~/projects/my-app/.ai-memory/
+PAM only records what its CLI, MCP tools, API, UI, or generated hooks send to
+it. It does not silently read arbitrary conversations.
 
-cd ../frontend
-pam list
-# -> Shows the same memory
+## Capture Modes
+
+PAM defaults to `auto` mode:
+
+- MCP tools can write active durable memories directly.
+- Generated hooks can capture redacted raw `exchange` memories as Markdown
+  evidence.
+- Duplicate or contradictory memories can be merged or superseded.
+
+Use `assisted` mode when you want proposed memories to be reviewed first, or
+`manual` mode when you only want explicit CLI/API writes.
+
+See [docs/capture-modes.md](docs/capture-modes.md).
+
+## Published Packages
+
+All packages are published on npmjs.com under the `@helloworlkd` scope. The
+GitHub repository "Packages" panel only shows packages published to GitHub
+Packages, so it can stay empty even when these npm packages are published.
+
+| Package                                                                                | npm                                                                                                                                         | Use it for                                                                                                                               |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@helloworlkd/pam-cli`](https://www.npmjs.com/package/@helloworlkd/pam-cli)           | [![npm](https://img.shields.io/npm/v/%40helloworlkd%2Fpam-cli?label=version)](https://www.npmjs.com/package/@helloworlkd/pam-cli)           | The `pam` command, project setup, MCP server startup, UI startup, import/export, and maintenance commands.                               |
+| [`@helloworlkd/pam-core`](https://www.npmjs.com/package/@helloworlkd/pam-core)         | [![npm](https://img.shields.io/npm/v/%40helloworlkd%2Fpam-core?label=version)](https://www.npmjs.com/package/@helloworlkd/pam-core)         | TypeScript APIs for storage, Markdown parsing, indexing, search, context compilation, capture, supersession, handoff, and import/export. |
+| [`@helloworlkd/pam-protocol`](https://www.npmjs.com/package/@helloworlkd/pam-protocol) | [![npm](https://img.shields.io/npm/v/%40helloworlkd%2Fpam-protocol?label=version)](https://www.npmjs.com/package/@helloworlkd/pam-protocol) | MCP server and MCP tool handlers for PAM memory access.                                                                                  |
+| [`@helloworlkd/pam-api`](https://www.npmjs.com/package/@helloworlkd/pam-api)           | [![npm](https://img.shields.io/npm/v/%40helloworlkd%2Fpam-api?label=version)](https://www.npmjs.com/package/@helloworlkd/pam-api)           | Local HTTP API server used by the UI and embeddable clients.                                                                             |
+| [`@helloworlkd/pam-ui`](https://www.npmjs.com/package/@helloworlkd/pam-ui)             | [![npm](https://img.shields.io/npm/v/%40helloworlkd%2Fpam-ui?label=version)](https://www.npmjs.com/package/@helloworlkd/pam-ui)             | Built local web UI assets and helper for resolving the UI distribution path.                                                             |
+
+Programmatic core usage:
+
+```ts
+import { createMemory, initProjectMemory, listMemories } from '@helloworlkd/pam-core'
+
+const basePath = await initProjectMemory(process.cwd())
+
+await createMemory(basePath, {
+  type: 'decision',
+  scope: 'project',
+  content: 'Use SQLite for the local memory index.',
+  tags: ['storage'],
+})
+
+const memories = await listMemories(basePath)
 ```
 
-### Isolated Memory
+Local API usage:
 
-```text
-~/projects/my-app/
-  |-- backend/
-  |   `-- .ai-memory/          <- Isolated backend memory
-  `-- frontend/
-      `-- .ai-memory/          <- Isolated frontend memory
-```
+```ts
+import { startLocalApiServer } from '@helloworlkd/pam-api'
 
-```bash
-cd ~/projects/my-app/backend
-pam init
-# -> Creates isolated memory for this project only
+const api = await startLocalApiServer({
+  cwd: process.cwd(),
+  host: '127.0.0.1',
+  port: 3939,
+})
+
+console.log(api.url)
 ```
 
 ## Features
 
-- Human-readable Markdown memory storage, including raw `exchange` memories.
-- SQLite + FTS5 indexing.
-- SQLite theme compilations for compact Instruction/Decision/Issue-style
-  context.
-- Text, tag, metadata, and semantic search.
-- Automatic semantic vectors with built-in local hash embeddings, optional local
-  model embeddings, or OpenAI embeddings.
-- Export/import in ZIP, JSON, Markdown, and SQLite formats.
-- Basic secret redaction.
-- Context compilation for LLM prompts.
-- Supersession chains for updated or conflicting memories.
-- Agent handoffs for cross-session context transfer.
-- Configurable memory decay and forget sweeps.
-- MCP stdio server.
-- Local web UI via `pam ui`.
-- Three capture modes: auto (default), assisted, and manual.
-- Settings UI for capture mode, semicolon-separated ignored concepts, and index
-  rebuilds.
-- LLM context page with copy-to-clipboard support.
-- Strong concepts driven by client-provided semantic concepts, with content
-  extraction fallback and user-configurable ignored concepts.
-- Sidebar version status for core, protocol, UI, API, and CLI packages.
-- Optional diagnostics: recommendations, cleanup, distillation, and Knowledge
-  Graph previews.
+- Local Markdown memory store in `.ai-memory/`
+- SQLite and FTS5 indexes
+- Text, tag, metadata, and semantic search
+- Built-in local hash embeddings with optional local model or OpenAI embeddings
+- MCP stdio server for AI agents and IDEs
+- Local web UI through `pam ui`
+- Context compilation for LLM prompts
+- Capture modes: `auto`, `assisted`, and `manual`
+- Review, approve, reject, archive, restore, redact, import, and export flows
+- Supersession chains for updated or conflicting memories
+- Cross-agent handoffs
+- Optional diagnostics, cleanup recommendations, distillation, and Knowledge
+  Graph previews
 
-## UI
+## Development From Source
+
+Clone your fork, then run:
 
 ```bash
-pam ui --open
+pnpm setup
 ```
 
-The dashboard shows memory activity, active context source count, selected LLM
-context preview, strong concepts, Knowledge Graph metrics, SQLite index health,
-package versions, and memory inventory. `/llm-context` shows the full generated
-context and includes a copy button. `/settings` controls capture mode and
-ignored concepts.
+`pnpm setup` installs dependencies, builds every package, and links the local
+`pam` command from `packages/cli`.
 
-See [docs/ui.md](docs/ui.md).
-
-## Semantic Search
-
-PAM uses vector embeddings for semantic search and automatic indexing:
-
-- **Default local**: deterministic hash embeddings, 384 dimensions, no setup.
-- **Optional local model**: `Xenova/all-MiniLM-L6-v2`, 384 dimensions, offline
-  after setup.
-- **Optional OpenAI**: `text-embedding-3-small`, 1536 dimensions, requires an
-  API key.
-
-Optional local model:
+Manual development flow:
 
 ```bash
-npm install -g @xenova/transformers
+pnpm install
+pnpm build
+pnpm link:cli
 ```
 
-OpenAI embeddings:
+Common checks:
 
 ```bash
-export EMBEDDING_PROVIDER=openai
-export OPENAI_API_KEY=your_key_here
+pnpm test
+pnpm lint
+pnpm format:check
+pnpm pack:check
+pnpm release:check
 ```
 
-See [docs/concepts.md](docs/concepts.md#semantic-search).
+End-to-end tests require Chromium:
+
+```bash
+pnpm exec playwright install chromium
+pnpm test:e2e
+```
+
+## Repository Structure
+
+```text
+PAM/
+|-- packages/
+|   |-- core/       # Storage, Markdown, indexing, search, capture logic
+|   |-- api/        # Local HTTP API for UI/Desktop/IDE clients
+|   |-- cli/        # Command-line interface and npm binary
+|   |-- mcp/        # MCP server and MCP tools
+|   `-- ui/         # Local web interface
+|-- docs/           # User and developer documentation
+|-- examples/       # Example workflows and configs
+|-- scripts/        # Release and packaging utilities
+`-- tests/          # End-to-end tests
+```
 
 ## Documentation
 
 - [Getting Started](docs/getting-started.md)
-- [Architecture](docs/architecture.md)
-- [CLI](docs/cli.md)
-- [MCP](docs/mcp.md)
+- [CLI Reference](docs/cli.md)
+- [MCP Setup](docs/mcp.md)
 - [UI](docs/ui.md)
-- [Intelligence Layer](docs/intelligence.md)
+- [Architecture](docs/architecture.md)
+- [Concepts and Semantic Search](docs/concepts.md)
 - [Capture Modes](docs/capture-modes.md)
+- [Intelligence Layer](docs/intelligence.md)
 - [Role Examples](docs/examples.md)
-- [Glossary](docs/glossary.md)
 - [Security](docs/security.md)
-- [Concepts](docs/concepts.md)
+- [Debugging](docs/debug.md)
 - [FAQ](docs/faq.md)
-- [Debug](docs/debug.md)
+- [Glossary](docs/glossary.md)
 
 ## Examples
 
@@ -300,33 +298,6 @@ See [docs/concepts.md](docs/concepts.md#semantic-search).
 - [Export / Import](examples/export-import.md)
 - [Shared Memory](examples/shared-memory.md)
 - [MCP Config](examples/mcp-config.json)
-
-## Development
-
-```bash
-pnpm build
-pnpm test
-pnpm exec playwright install chromium
-pnpm test:e2e
-pnpm lint
-pnpm format
-pnpm release:check
-```
-
-## Structure
-
-```text
-PAM/
-|-- packages/
-|   |-- core/       # Storage, indexing, search
-|   |-- api/        # Local HTTP API for UI/Desktop/IDE clients
-|   |-- cli/        # Command-line interface
-|   |-- mcp/        # MCP server
-|   `-- ui/         # Local web interface
-|-- docs/           # Documentation
-|-- examples/       # Usage examples
-`-- scripts/        # Utility scripts
-```
 
 ## License
 
