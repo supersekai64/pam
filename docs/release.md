@@ -1,16 +1,28 @@
 # Release
 
 Use GitHub Actions for npm releases. The first publication of each package needs
-an npm automation token because npm trusted publishing can only be configured
-after the package exists. After the first publish, configure trusted publishing
-and remove the token dependency from the workflow.
+a granular npm access token with 2FA bypass enabled because npm trusted
+publishing can only be configured after the package exists. After the first
+publish, configure trusted publishing and remove the token dependency from the
+workflow.
 
 ## One-time npm setup
 
 Before the first publish, create a GitHub Actions secret named `NPM_TOKEN` with
-an npm token that can publish public packages under the `@supersekai64` scope.
-The token owner must have publish rights for that npm user or organization
-scope.
+a granular npm access token that can publish public packages under the
+`@supersekai64` scope. The token owner must have publish rights for that npm
+user or organization scope.
+
+When creating the token on npm:
+
+- enable `Bypass two-factor authentication`;
+- grant `Read and write` package permissions;
+- select the `@supersekai64` scope or all packages the account can publish;
+- avoid IP allowlists for GitHub-hosted runners unless the ranges are maintained
+  deliberately.
+
+A token without 2FA bypass will fail in GitHub Actions with `EOTP` because npm
+will request a one-time password during `npm publish`.
 
 After each package exists on npm, open the package settings for
 `@supersekai64/pam-core`, `@supersekai64/pam-ui`, `@supersekai64/pam-api`,
