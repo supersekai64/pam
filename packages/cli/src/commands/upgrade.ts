@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { Command } from 'commander'
 import {
@@ -12,6 +14,7 @@ import {
 } from './upgrade-state.js'
 
 interface UpgradeCommandOptions {
+  background?: boolean
   package?: string
   npm?: string
   dryRun?: boolean
@@ -25,8 +28,9 @@ export function registerUpgradeCommand(program: Command) {
     .description('Update the global PAM CLI without leaving running services locked')
     .option('--package <spec>', 'Package spec to install', '@helloworlkd/pam-cli@latest')
     .option('--npm <command>', 'npm executable to use')
+    .option('--background', 'Start the upgrade in the background and print log paths')
     .option('--dry-run', 'Show the update steps without installing')
-    .action((options: UpgradeCommandOptions) => {
+    .action(async (options: UpgradeCommandOptions) => {
       const runId = `upgrade-${Date.now()}`
       const startedAt = new Date().toISOString()
       const paths = getUpgradeStatePaths(runId)
@@ -40,7 +44,7 @@ export function registerUpgradeCommand(program: Command) {
       const child = spawn(process.execPath, args, {
         detached: !options.dryRun,
         stdio: options.dryRun ? 'inherit' : 'ignore',
-        windowsHide: false,
+        windowsHide: true,
       })
 
       if (options.dryRun) {
@@ -64,11 +68,23 @@ export function registerUpgradeCommand(program: Command) {
       appendUpgradeLog(paths.logPath, `[${startedAt}] queued: ${status.message}\n`)
 
       child.unref()
-      console.log(`PAM upgrade started in the background (${runId}).`)
+      console.log(`PAM upgrade started (${runId}).`)
       console.log('Progress: queued -> stopping services -> npm install -> done.')
       console.log(`Status file: ${paths.statusPath}`)
       console.log(`Log file: ${paths.logPath}`)
-      console.log(`Follow live: ${formatLogFollowCommand(paths.logPath)}`)
+
+      if (options.background) {
+        console.log(`Follow live: ${formatLogFollowCommand(paths.logPath)}`)
+        return
+      }
+
+      console.log(
+        'Following progress in this terminal. Press Ctrl+C to stop watching; the upgrade will continue.'
+      )
+      const finalStatus = await followUpgradeProgress(runId, paths.logPath)
+      if (finalStatus?.phase === 'failed') {
+        process.exit(finalStatus.exitCode ?? 1)
+      }
     })
 
   upgrade
@@ -97,4 +113,30 @@ function formatLogFollowCommand(logPath: string): string {
   }
 
   return `tail -f "${logPath}"`
+}
+
+async function followUpgradeProgress(
+  runId: string,
+  logPath: string
+): Promise<UpgradeStatus | null> {
+  let offset = 0
+
+  for (;;) {
+    offset = printNewLogContent(logPath, offset)
+    const status = readUpgradeStatus(runId)
+    if (status?.phase === 'succeeded' || status?.phase === 'failed') {
+      offset = printNewLogContent(logPath, offset)
+      return status
+    }
+
+    await delay(300)
+  }
+}
+
+function printNewLogContent(logPath: string, offset: number): number {
+  if (!existsSync(logPath)) return offset
+  const content = readFileSync(logPath, 'utf-8')
+  if (content.length <= offset) return offset
+  process.stdout.write(content.slice(offset))
+  return content.length
 }
