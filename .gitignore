@@ -32,3 +32,4 @@ scripts/
 playwright.config.ts
 .agents/
 .pamagotchi-lite/
+skills-lock.json
