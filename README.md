@@ -1,7 +1,6 @@
 # Portable AI Memory (PAM)
 
 [![npm version](https://img.shields.io/npm/v/%40helloworlkd%2Fpam-cli?label=pam-cli)](https://www.npmjs.com/package/@helloworlkd/pam-cli)
-[![npm downloads](https://img.shields.io/npm/dm/%40helloworlkd%2Fpam-cli?label=npm%20downloads)](https://www.npmjs.com/package/@helloworlkd/pam-cli)
 [![Node.js](https://img.shields.io/node/v/%40helloworlkd%2Fpam-cli?label=node)](#requirements)
 [![License](https://img.shields.io/badge/license-source--available-blue)](LICENSE)
 
@@ -184,23 +183,6 @@ Manual development flow:
 pnpm install
 pnpm build
 pnpm link:cli
-```
-
-Common checks:
-
-```bash
-pnpm test
-pnpm lint
-pnpm format:check
-pnpm pack:check
-pnpm release:check
-```
-
-End-to-end tests require Chromium:
-
-```bash
-pnpm exec playwright install chromium
-pnpm test:e2e
 ```
 
 ## Repository Structure
