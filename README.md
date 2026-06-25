@@ -19,8 +19,6 @@ PAM is not a hosted chat product. It is a local memory layer that you control.
 
 - If you want to use PAM from npm, install `@helloworlkd/pam-cli` and run the
   `pam` command.
-- If you want to integrate PAM into another TypeScript tool, use the examples in
-  [Programmatic Usage](#programmatic-usage).
 - If you want to fork or contribute to PAM, use the workflow in
   [Development From Source](#development-from-source).
 
@@ -152,40 +150,6 @@ Use `assisted` mode when you want proposed memories to be reviewed first, or
 `manual` mode when you only want explicit CLI/API writes.
 
 See [docs/capture-modes.md](docs/capture-modes.md).
-
-## Programmatic Usage
-
-Use `@helloworlkd/pam-core` when embedding PAM storage and search in another
-TypeScript tool:
-
-```ts
-import { createMemory, initProjectMemory, listMemories } from '@helloworlkd/pam-core'
-
-const basePath = await initProjectMemory(process.cwd())
-
-await createMemory(basePath, {
-  type: 'decision',
-  scope: 'project',
-  content: 'Use SQLite for the local memory index.',
-  tags: ['storage'],
-})
-
-const memories = await listMemories(basePath)
-```
-
-Use `@helloworlkd/pam-api` when embedding the local HTTP API:
-
-```ts
-import { startLocalApiServer } from '@helloworlkd/pam-api'
-
-const api = await startLocalApiServer({
-  cwd: process.cwd(),
-  host: '127.0.0.1',
-  port: 3939,
-})
-
-console.log(api.url)
-```
 
 ## Features
 
