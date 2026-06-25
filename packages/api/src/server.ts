@@ -256,7 +256,6 @@ const RUNTIME_CONFIG_FILE = 'runtime.json'
 const PROJECT_SCOPE = 'project'
 const PAM_HEALTH_NAME = 'PAM'
 const SESSION_HEADER = 'x-pam-session'
-const PACKAGE_VERSION_CACHE_TTL_MS = 10 * 60 * 1000
 const NPM_VERSION_TIMEOUT_MS = 3000
 const PACKAGE_VERSION_SPECS: PackageVersionSpec[] = [
   { name: '@helloworlkd/pam-core', label: 'Core', workspaceManifest: '../../core/package.json' },
@@ -269,11 +268,6 @@ const PACKAGE_VERSION_SPECS: PackageVersionSpec[] = [
   { name: '@helloworlkd/pam-api', label: 'API', workspaceManifest: '../package.json' },
   { name: '@helloworlkd/pam-cli', label: 'CLI', workspaceManifest: '../../cli/package.json' },
 ]
-
-let packageVersionsCache: {
-  expiresAt: number
-  response: PackageVersionsResponse
-} | null = null
 
 export function createLocalApiServer(options: LocalApiServerOptions = {}): Server {
   const cwd = options.cwd ?? process.cwd()
@@ -891,10 +885,6 @@ async function buildIndexDiagnostics(basePath: string): Promise<IndexDiagnostics
 }
 
 async function buildPackageVersions(): Promise<PackageVersionsResponse> {
-  if (packageVersionsCache && packageVersionsCache.expiresAt > Date.now()) {
-    return packageVersionsCache.response
-  }
-
   const packages = await Promise.all(
     PACKAGE_VERSION_SPECS.map(async (spec) => {
       const [localManifest, latest] = await Promise.all([
@@ -928,18 +918,11 @@ async function buildPackageVersions(): Promise<PackageVersionsResponse> {
     })
   )
 
-  const response: PackageVersionsResponse = {
+  return {
     packages,
     checkedAt: new Date().toISOString(),
     updateCount: packages.filter((item) => item.status === 'update-available').length,
   }
-
-  packageVersionsCache = {
-    expiresAt: Date.now() + PACKAGE_VERSION_CACHE_TTL_MS,
-    response,
-  }
-
-  return response
 }
 
 async function readPackageManifest(spec: PackageVersionSpec): Promise<LocalPackageManifest | null> {
@@ -1040,7 +1023,11 @@ async function fetchLatestNpmVersion(
     const response = await fetch(
       `https://registry.npmjs.org/${encodeURIComponent(packageName)}/latest`,
       {
-        headers: { accept: 'application/json' },
+        headers: {
+          accept: 'application/json',
+          'cache-control': 'no-cache',
+          pragma: 'no-cache',
+        },
         signal: controller.signal,
       }
     )

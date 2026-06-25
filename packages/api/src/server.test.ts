@@ -574,6 +574,56 @@ describe('local API concepts', () => {
     }
   })
 
+  it('refreshes npm package metadata between version checks', async () => {
+    const latestVersions: Record<string, string> = {
+      '@helloworlkd/pam-core': readPackageVersion('packages/core/package.json'),
+      '@helloworlkd/pam-protocol': readPackageVersion('packages/mcp/package.json'),
+      '@helloworlkd/pam-ui': readPackageVersion('packages/ui/package.json'),
+      '@helloworlkd/pam-api': readPackageVersion('packages/api/package.json'),
+      '@helloworlkd/pam-cli': readPackageVersion('packages/cli/package.json'),
+    }
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url =
+        typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      if (url.startsWith('https://registry.npmjs.org/')) {
+        const packageName = decodeURIComponent(url.split('/').at(-2) ?? '')
+
+        return new Response(
+          JSON.stringify({
+            version: latestVersions[packageName],
+            repository: { url: 'git+https://github.com/supersekai64/pam.git' },
+          }),
+          {
+            headers: { 'content-type': 'application/json' },
+          }
+        )
+      }
+
+      return originalFetch(input, init)
+    }) satisfies typeof fetch
+
+    const { baseUrl, close } = await startTestServer({ cwd: tempDir })
+    try {
+      const first = await getJson<PackageVersions>(`${baseUrl}/api/package-versions`)
+      expect(first.updateCount).toBe(0)
+
+      latestVersions['@helloworlkd/pam-cli'] = '99.0.0'
+
+      const second = await getJson<PackageVersions>(`${baseUrl}/api/package-versions`)
+      const cli = second.packages.find((item) => item.name === '@helloworlkd/pam-cli')
+
+      expect(second.updateCount).toBe(1)
+      expect(cli).toMatchObject({
+        latestVersion: '99.0.0',
+        status: 'update-available',
+      })
+    } finally {
+      globalThis.fetch = originalFetch
+      await close()
+    }
+  })
+
   it('validates memory update payloads before mutating', async () => {
     const memory = await createMemory(memoryPath, {
       type: 'knowledge',

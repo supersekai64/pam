@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ContextPreview, IndexDiagnosticsResponse, PackageVersionsResponse } from '@/types'
 
 export type RuntimeView = 'dashboard' | 'llm-context' | 'sqlite-index' | 'settings'
@@ -215,18 +216,7 @@ function PackageVersionsBlock({
                     {formatVersion(item.currentVersion)}
                   </span>
                 </div>
-                <Badge
-                  variant={item.status === 'update-available' ? 'default' : 'outline'}
-                  className="h-5 min-w-12 justify-center px-2 text-[11px]"
-                  title={packageVersionStatusTitle(item)}
-                >
-                  {versionStatusLabel(item.status)}
-                </Badge>
-                {item.status === 'update-available' && item.latestVersion ? (
-                  <span className="col-span-2 truncate pl-[4.5rem] text-[11px] text-sidebar-foreground/60">
-                    latest {formatVersion(item.latestVersion)}
-                  </span>
-                ) : null}
+                <PackageVersionStatusBadge item={item} />
               </div>
             ))}
           </div>
@@ -238,6 +228,39 @@ function PackageVersionsBlock({
       </SidebarGroupContent>
     </div>
   )
+}
+
+function PackageVersionStatusBadge({
+  item,
+}: {
+  item: PackageVersionsResponse['packages'][number]
+}) {
+  const badge = (
+    <Badge
+      variant={packageVersionBadgeVariant(item.status)}
+      className="h-5 min-w-12 justify-center px-2 text-[11px]"
+    >
+      {versionStatusLabel(item.status)}
+    </Badge>
+  )
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={badge} />
+      <TooltipContent side="top" align="end">
+        {packageVersionStatusTitle(item)}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+function packageVersionBadgeVariant(
+  status: PackageVersionsResponse['packages'][number]['status']
+): React.ComponentProps<typeof Badge>['variant'] {
+  if (status === 'up-to-date') return 'success'
+  if (status === 'update-available') return 'warning'
+  if (status === 'unknown') return 'destructive'
+  return 'secondary'
 }
 
 function versionStatusLabel(status: PackageVersionsResponse['packages'][number]['status']): string {
@@ -254,10 +277,14 @@ function formatVersion(version?: string | null): string {
 
 function packageVersionStatusTitle(item: PackageVersionsResponse['packages'][number]): string {
   if (item.status === 'update-available' && item.latestVersion) {
-    return `${item.label} can be updated to ${formatVersion(item.latestVersion)}.`
+    return `${item.label} can be updated. Latest version: ${formatVersion(item.latestVersion)}.`
+  }
+  if (item.status === 'ahead' && item.latestVersion) {
+    return `${item.label} is ahead of npm latest ${formatVersion(item.latestVersion)}.`
   }
   if (item.status === 'ahead') return `${item.label} is ahead of the published npm version.`
   if (item.status === 'unknown')
     return item.error || `${item.label} npm metadata needs verification.`
+  if (item.latestVersion) return `${item.label} is current at ${formatVersion(item.latestVersion)}.`
   return `${item.label} is current.`
 }

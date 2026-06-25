@@ -138,7 +138,7 @@ export function DataTable({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search inventory..."
-              className="h-8 w-full pl-8 !text-sm placeholder:!text-sm md:!text-sm md:placeholder:!text-sm"
+              className="h-8 w-full pl-8 text-sm! placeholder:text-sm! md:text-sm! md:placeholder:text-sm!"
             />
           </div>
           <div className="max-w-full overflow-x-auto">
@@ -547,37 +547,46 @@ function Detail({ label, value, tooltip }: { label: string; value: string; toolt
 }
 
 function StatusBadge({ status }: { status: MemoryStatus }) {
-  const config = {
+  type StatusBadgeConfig = {
+    label: string
+    variant: React.ComponentProps<typeof Badge>['variant']
+    className?: string
+  }
+
+  const config: Record<MemoryStatus, StatusBadgeConfig> = {
     active: {
       label: 'active',
-      className:
-        'border-transparent bg-green-500/10 text-green-500 hover:bg-green-500/10 dark:bg-green-500/20 dark:hover:bg-green-500/20',
+      variant: 'success',
     },
     proposed: {
       label: 'proposed',
+      variant: 'outline',
       className:
         'border-transparent bg-sky-500/10 text-sky-500 hover:bg-sky-500/10 dark:bg-sky-500/20 dark:hover:bg-sky-500/20',
     },
     archived: {
       label: 'archived',
+      variant: 'outline',
       className:
         'border-transparent bg-purple-500/10 text-purple-500 hover:bg-purple-500/10 dark:bg-purple-500/20 dark:hover:bg-purple-500/20',
     },
     deleted: {
       label: 'deleted',
+      variant: 'outline',
       className:
         'border-transparent bg-red-500/10 text-red-500 hover:bg-red-500/10 dark:bg-red-500/20 dark:hover:bg-red-500/20',
     },
     noise: {
       label: 'noise',
+      variant: 'outline',
       className:
         'border-transparent bg-blue-500/10 text-blue-500 hover:bg-blue-500/10 dark:bg-blue-500/20 dark:hover:bg-blue-500/20',
     },
-  } satisfies Record<MemoryStatus, { label: string; className: string }>
+  }
   const item = config[status]
 
   return (
-    <Badge variant="outline" className={cn('px-2.5', item.className)}>
+    <Badge variant={item.variant} className={cn('px-2.5', item.className)}>
       {item.label}
     </Badge>
   )

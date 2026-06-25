@@ -18,13 +18,21 @@ test('empty store shows the dashboard shell and create path', async ({ page }) =
 
     await expect(page.getByRole('heading', { name: 'PAM Dashboard' })).toBeVisible()
     await expect(page.getByPlaceholder('Search memories, tags, sources...')).toBeHidden()
-    await expect(page.getByRole('button', { name: 'New memory' })).toBeHidden()
+    await expect(page.getByRole('button', { name: 'New memory' })).toBeVisible()
     await expect(page.getByText('Local project store')).toBeHidden()
     await expectRuntimeNavigationBeforePackageVersions(page)
     await expect(page.getByText('npm builds')).toBeHidden()
-    await expect(page.getByText('v0.1.16')).toBeVisible()
-    await expect(page.getByText('latest').first()).toBeVisible()
-    await expect(page.getByText('update').first()).toBeVisible()
+    await expect(page.getByText('v0.1.16')).toBeHidden()
+    const latestBadge = page.getByText('latest', { exact: true }).first()
+    const updateBadge = page.getByText('update', { exact: true }).first()
+    await expect(latestBadge).toBeVisible()
+    await expect(latestBadge).toHaveClass(/bg-success/)
+    await expect(updateBadge).toBeVisible()
+    await expect(updateBadge).toHaveClass(/bg-warning/)
+    await updateBadge.hover()
+    await expect(page.locator('[data-slot="tooltip-content"]')).toContainText(
+      'Latest version: v0.1.16'
+    )
     await expect(page.getByText('check')).toBeHidden()
     await expectSidebarToFillViewport(page)
     await expect(sidebarButton(page, 'SQLite index')).toContainText(
@@ -47,7 +55,7 @@ test('empty store shows the dashboard shell and create path', async ({ page }) =
     await expect(conceptsEmptyState(page)).toBeVisible()
     await expect(conceptsEmptyState(page)).toHaveClass(/border-dashed/)
 
-    await page.getByRole('button', { name: 'New' }).click()
+    await page.getByRole('button', { name: 'New memory' }).click()
     await withinDialog(page).getByLabel('Title').fill('Empty smoke memory')
     await withinDialog(page).getByLabel('Content').fill('Created from the empty-store UI smoke test.')
     await withinDialog(page).getByRole('button', { name: 'Create memory' }).click()
@@ -152,7 +160,8 @@ test('runtime metric badges show skeletons while loading', async ({ page }) => {
     await expect(sidebarButton(page, 'SQLite index')).toContainText(
       /[1-9][\d.,]*\s?(B|KB|MB|GB)/
     )
-    await expect(page.getByText('v0.1.16')).toBeVisible()
+    await expect(page.getByText('v0.1.15')).toBeVisible()
+    await expect(page.getByText('v0.1.16')).toBeHidden()
   } finally {
     releaseContextPreview()
     releaseIndexStats()
@@ -502,7 +511,7 @@ test('UI can approve, create, inspect context, and show graph metrics', async ({
     await withinDialog(page).getByRole('button', { name: 'Approve' }).click()
     await expect(page.getByText('Memory approved.')).toBeVisible()
 
-    await page.getByRole('button', { name: 'New' }).click()
+    await page.getByRole('button', { name: 'New memory' }).click()
     await withinDialog(page).getByLabel('Title').fill('E2E-created memory')
     await withinDialog(page)
       .getByLabel('Content')

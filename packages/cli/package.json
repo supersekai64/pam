@@ -1,6 +1,6 @@
 {
   "name": "@helloworlkd/pam-cli",
-  "version": "0.1.22",
+  "version": "0.1.23",
   "description": "PAM CLI - Command line interface for PAM",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",

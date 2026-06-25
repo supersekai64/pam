@@ -37,9 +37,9 @@ export function SiteHeader({
           )}
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <Button size="sm" onClick={onCreate} className="hidden sm:inline-flex">
-            <IconPlus />
-            New
+          <Button size="sm" onClick={onCreate} className="hidden text-sm sm:inline-flex">
+            <IconPlus data-icon="inline-start" />
+            New memory
           </Button>
         </div>
       </div>
