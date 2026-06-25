@@ -116,7 +116,7 @@ export function ChartAreaInteractive({
               if (nextRange) applyPresetRange(nextRange as PresetRange)
             }}
             variant="outline"
-            className="hidden *:data-[slot=toggle-group-item]:px-4! @[767px]/card:flex"
+            className="hidden *:data-[slot=toggle-group-item]:px-3! @[767px]/card:flex"
           >
             <ToggleGroupItem value="90d">90 days</ToggleGroupItem>
             <ToggleGroupItem value="30d">30 days</ToggleGroupItem>
@@ -149,7 +149,7 @@ export function ChartAreaInteractive({
                   aria-label={`Date range: ${dateRangeLabel}`}
                   data-empty={!dateRange.from}
                   variant="outline"
-                  className="w-40 justify-start text-left font-normal data-[empty=true]:text-muted-foreground @[540px]/card:w-[230px]"
+                  className="w-40 justify-start text-left font-normal data-[empty=true]:text-muted-foreground @[540px]/card:w-[216px]"
                 />
               }
             >
